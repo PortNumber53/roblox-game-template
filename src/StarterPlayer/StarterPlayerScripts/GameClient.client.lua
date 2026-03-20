@@ -20,6 +20,7 @@ WaitingRoomUI.Init()
 
 local currentState = GameConfig.GameState.WaitingRoom
 local sessionScore = 0
+local currentLayout = nil -- the wall pattern for this session
 
 -- Simple in-game HUD
 local gameHud = Instance.new("ScreenGui")
@@ -125,8 +126,45 @@ RemoteSetup.GetRemote(GameConfig.Remotes.SessionScoreUpdate).OnClientEvent:Conne
 	scoreLabel.Text = "Walls Painted: " .. score
 end)
 
+-- Wall layout update (received at session start with the pattern)
+RemoteSetup.GetRemote(GameConfig.Remotes.WallLayoutUpdate).OnClientEvent:Connect(function(layout, patternName)
+	currentLayout = layout
+	print("[GameClient] Pattern: " .. tostring(patternName))
+
+	local wallFolder = workspace:FindFirstChild("WallGrid")
+	if not wallFolder then
+		return
+	end
+
+	-- Apply the layout visuals to each wall part
+	for r = 1, GameConfig.WALL_GRID_ROWS do
+		if layout[r] then
+			for c = 1, GameConfig.WALL_GRID_COLS do
+				local partName = "Wall_" .. r .. "_" .. c
+				local part = wallFolder:FindFirstChild(partName)
+				if part then
+					local cellType = layout[r][c]
+					if cellType == "blocked" then
+						part.Color = Color3.fromRGB(40, 40, 50)
+						part.Material = Enum.Material.Slate
+						part.Transparency = 0
+					elseif cellType == "bonus" then
+						part.Color = Color3.fromRGB(255, 215, 0)
+						part.Material = Enum.Material.Neon
+						part.Transparency = 0
+					else -- "open"
+						part.Color = Color3.fromRGB(180, 180, 195)
+						part.Material = Enum.Material.SmoothPlastic
+						part.Transparency = 0
+					end
+				end
+			end
+		end
+	end
+end)
+
 -- Wall state updates (color a part when someone paints)
-RemoteSetup.GetRemote(GameConfig.Remotes.WallStateUpdate).OnClientEvent:Connect(function(row, col, painterId)
+RemoteSetup.GetRemote(GameConfig.Remotes.WallStateUpdate).OnClientEvent:Connect(function(row, col, painterId, cellType)
 	local wallFolder = workspace:FindFirstChild("WallGrid")
 	if not wallFolder then
 		return
@@ -135,9 +173,18 @@ RemoteSetup.GetRemote(GameConfig.Remotes.WallStateUpdate).OnClientEvent:Connect(
 	local partName = "Wall_" .. row .. "_" .. col
 	local part = wallFolder:FindFirstChild(partName)
 	if part then
-		-- Use the painter's team/chosen color; for now use a default per-player hue
+		-- Use a per-player hue
 		local hue = (painterId * 0.13) % 1
-		part.Color = Color3.fromHSV(hue, 0.7, 0.9)
+		local saturation = 0.7
+		local value = 0.9
+
+		-- Bonus cells get a brighter, more vivid paint
+		if cellType == "bonus" then
+			saturation = 0.9
+			value = 1.0
+		end
+
+		part.Color = Color3.fromHSV(hue, saturation, value)
 		part.Material = Enum.Material.SmoothPlastic
 	end
 end)

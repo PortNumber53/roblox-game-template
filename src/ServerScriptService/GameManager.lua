@@ -82,8 +82,12 @@ function GameManager.StartSession()
 		sessionScores[player.UserId] = 0
 	end
 
-	-- Initialize the wall grid
+	-- Initialize the wall grid with a random pattern
 	WallPaintingService.ResetWalls()
+
+	-- Broadcast the layout to all clients so they can render it
+	local layoutRemote = RemoteSetup.GetRemote(GameConfig.Remotes.WallLayoutUpdate)
+	layoutRemote:FireAllClients(WallPaintingService.GetLayout(), WallPaintingService.GetPatternName())
 
 	setState(GameConfig.GameState.InGame)
 
@@ -122,15 +126,17 @@ local function onPaintWallRequest(player: Player, row: number, col: number)
 		return
 	end
 
-	local success = WallPaintingService.PaintCell(player, row, col)
-	if success then
-		-- Update scores
-		sessionScores[player.UserId] = (sessionScores[player.UserId] or 0) + 1
+	local points = WallPaintingService.PaintCell(player, row, col)
+	if points > 0 then
+		-- Update scores (bonus cells award extra points)
+		sessionScores[player.UserId] = (sessionScores[player.UserId] or 0) + points
+		-- Record each wall painted (1 wall regardless of bonus multiplier)
 		LeaderboardService.RecordWallPainted(player)
 
 		-- Notify all clients of the wall update
 		local wallRemote = RemoteSetup.GetRemote(GameConfig.Remotes.WallStateUpdate)
-		wallRemote:FireAllClients(row, col, player.UserId)
+		local cellType = WallPaintingService.GetCellType(row, col)
+		wallRemote:FireAllClients(row, col, player.UserId, cellType)
 
 		-- Notify the painting player of their updated session score
 		local scoreRemote = RemoteSetup.GetRemote(GameConfig.Remotes.SessionScoreUpdate)

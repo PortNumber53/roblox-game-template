@@ -18,6 +18,7 @@ GameConfig.MAX_PLAYERS = 12
 GameConfig.SESSION_DURATION_SECONDS = 120
 GameConfig.WALL_GRID_ROWS = 10
 GameConfig.WALL_GRID_COLS = 16
+GameConfig.BONUS_CELL_MULTIPLIER = 2
 
 -- Leaderboard
 GameConfig.LEADERBOARD_MAX_ENTRIES = 50
@@ -29,6 +30,7 @@ GameConfig.Remotes = {
 	LeaderboardUpdate = "LeaderboardUpdate",
 	CountdownTick = "CountdownTick",
 	WallStateUpdate = "WallStateUpdate",
+	WallLayoutUpdate = "WallLayoutUpdate",
 	SessionScoreUpdate = "SessionScoreUpdate",
 
 	-- Client -> Server
