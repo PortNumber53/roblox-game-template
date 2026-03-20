@@ -64,44 +64,43 @@ end
 -- Bottom bar panel
 local panel = makeFrame(
 	screenGui, "StatsPanel",
-	UDim2.new(0, 340, 0, 130),
-	UDim2.new(0, 14, 1, -144),
+	UDim2.new(0, 220, 0, 100),
+	UDim2.new(0, 10, 1, -110),
 	Color3.fromRGB(15, 15, 15), 0.3
 )
-makeCorner(panel, 10)
+makeCorner(panel, 8)
 
--- Paint bar background
-local paintBarBG = makeFrame(panel, "PaintBarBG", UDim2.new(1, -20, 0, 18), UDim2.new(0, 10, 0, 10), Color3.fromRGB(40, 40, 40), 0)
-makeCorner(paintBarBG, 6)
+-- Coins label (top row, prominent)
+local coinsLabel = makeLabel(panel, "CoinsLabel", "Coins: 0", UDim2.new(1, -16, 0, 20), UDim2.new(0, 8, 0, 6), Color3.fromRGB(255, 220, 60), 14, true)
+
+-- Paint label + bar
+local paintLabel = makeLabel(panel, "PaintLabel", "Paint: 120 / 120", UDim2.new(1, -16, 0, 16), UDim2.new(0, 8, 0, 28), Color3.fromRGB(210, 235, 255), 12)
+
+local paintBarBG = makeFrame(panel, "PaintBarBG", UDim2.new(1, -16, 0, 8), UDim2.new(0, 8, 0, 44), Color3.fromRGB(40, 40, 40), 0)
+makeCorner(paintBarBG, 3)
 
 local paintBar = makeFrame(paintBarBG, "PaintBar", UDim2.new(1, 0, 1, 0), UDim2.new(0, 0, 0, 0), Color3.fromRGB(80, 160, 255), 0)
-makeCorner(paintBar, 6)
+makeCorner(paintBar, 3)
 
-local paintLabel = makeLabel(panel, "PaintLabel", "Paint: 120 / 120", UDim2.new(1, -20, 0, 18), UDim2.new(0, 10, 0, 10), Color3.fromRGB(210, 235, 255), 13)
+-- Size label + bar
+local sizeLabel = makeLabel(panel, "SizeLabel", "Size: 1.00 / 3.00", UDim2.new(1, -16, 0, 16), UDim2.new(0, 8, 0, 55), Color3.fromRGB(200, 255, 210), 12)
 
--- Size bar background
-local sizeBarBG = makeFrame(panel, "SizeBarBG", UDim2.new(1, -20, 0, 18), UDim2.new(0, 10, 0, 38), Color3.fromRGB(40, 40, 40), 0)
-makeCorner(sizeBarBG, 6)
+local sizeBarBG = makeFrame(panel, "SizeBarBG", UDim2.new(1, -16, 0, 8), UDim2.new(0, 8, 0, 71), Color3.fromRGB(40, 40, 40), 0)
+makeCorner(sizeBarBG, 3)
 
 local sizeBar = makeFrame(sizeBarBG, "SizeBar", UDim2.new(0, 0, 1, 0), UDim2.new(0, 0, 0, 0), Color3.fromRGB(120, 220, 130), 0)
-makeCorner(sizeBar, 6)
+makeCorner(sizeBar, 3)
 
-local sizeLabel = makeLabel(panel, "SizeLabel", "Size: 1.00 / 3.00", UDim2.new(1, -20, 0, 18), UDim2.new(0, 10, 0, 38), Color3.fromRGB(200, 255, 210), 13)
-
--- Milestone label
-local milestoneLabel = makeLabel(panel, "MilestoneLabel", "Next milestone: 1.5x  (+25 coins)", UDim2.new(1, -20, 0, 18), UDim2.new(0, 10, 0, 66), Color3.fromRGB(255, 230, 140), 13)
-milestoneLabel.TextSize = 11
-milestoneLabel.TextScaled = true
-milestoneLabel.TextWrapped = false
-
--- Coins label
-local coinsLabel = makeLabel(panel, "CoinsLabel", "Coins: 0", UDim2.new(1, -20, 0, 18), UDim2.new(0, 10, 0, 90), Color3.fromRGB(255, 220, 60), 15, true)
+-- Milestone label (bottom)
+local milestoneLabel = makeLabel(panel, "MilestoneLabel", "", UDim2.new(1, -16, 0, 16), UDim2.new(0, 8, 0, 82), Color3.fromRGB(255, 230, 140), 10)
+milestoneLabel.TextScaled = false
+milestoneLabel.TextWrapped = true
 
 -- Milestone popup
 local popup = Instance.new("Frame")
 popup.Name = "MilestonePopup"
-popup.Size = UDim2.new(0, 280, 0, 60)
-popup.Position = UDim2.new(0.5, -140, 0, -80)
+popup.Size = UDim2.new(0, 240, 0, 44)
+popup.Position = UDim2.new(0.5, -120, 0, -60)
 popup.BackgroundColor3 = Color3.fromRGB(255, 200, 50)
 popup.BackgroundTransparency = 0.1
 popup.BorderSizePixel = 0
@@ -171,13 +170,13 @@ evMilestone.OnClientEvent:Connect(function(coinsEarned, newSize)
 	popupActive = true
 	popupLabel.Text = string.format("Milestone! Size %.1f  +%d coins!", newSize, coinsEarned)
 	popup.Visible = true
-	popup.Position = UDim2.new(0.5, -140, 0, -80)
+	popup.Position = UDim2.new(0.5, -120, 0, -60)
 	TweenService:Create(popup, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
-		Position = UDim2.new(0.5, -140, 0, 24)
+		Position = UDim2.new(0.5, -120, 0, 20)
 	}):Play()
 	task.delay(2.8, function()
 		TweenService:Create(popup, TweenInfo.new(0.25), {
-			Position = UDim2.new(0.5, -140, 0, -80)
+			Position = UDim2.new(0.5, -120, 0, -60)
 		}):Play()
 		task.delay(0.3, function()
 			popup.Visible = false
@@ -189,8 +188,8 @@ end)
 -- Shop toggle button
 local shopBtn = Instance.new("TextButton")
 shopBtn.Name = "ShopButton"
-shopBtn.Size = UDim2.new(0, 100, 0, 38)
-shopBtn.Position = UDim2.new(1, -114, 1, -52)
+shopBtn.Size = UDim2.new(0, 80, 0, 30)
+shopBtn.Position = UDim2.new(1, -94, 1, -42)
 shopBtn.BackgroundColor3 = Color3.fromRGB(255, 200, 40)
 shopBtn.TextColor3 = Color3.fromRGB(30, 20, 0)
 shopBtn.TextSize = 16

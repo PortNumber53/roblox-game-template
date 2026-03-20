@@ -14,12 +14,6 @@ GameConfig.MIN_PLAYERS_TO_START = 1
 GameConfig.COUNTDOWN_SECONDS = 10
 GameConfig.MAX_PLAYERS = 12
 
--- Game session settings
-GameConfig.SESSION_DURATION_SECONDS = 120
-GameConfig.WALL_GRID_ROWS = 10
-GameConfig.WALL_GRID_COLS = 16
-GameConfig.BONUS_CELL_MULTIPLIER = 2
-
 -- Leaderboard
 GameConfig.LEADERBOARD_MAX_ENTRIES = 50
 
@@ -29,16 +23,22 @@ GameConfig.Remotes = {
 	GameStateChanged = "GameStateChanged",
 	LeaderboardUpdate = "LeaderboardUpdate",
 	CountdownTick = "CountdownTick",
-	WallStateUpdate = "WallStateUpdate",
-	WallLayoutUpdate = "WallLayoutUpdate",
 	SessionScoreUpdate = "SessionScoreUpdate",
+	StatsSync = "StatsSync",
+	MilestoneReached = "MilestoneReached",
+	Feedback = "Feedback",
 
 	-- Client -> Server
 	RequestStartGame = "RequestStartGame",
-	RequestPaintWall = "RequestPaintWall",
 	RequestLeaderboard = "RequestLeaderboard",
 	RequestSettings = "RequestSettings",
 	UpdateSetting = "UpdateSetting",
+	Paint = "Paint",
+}
+
+-- Remote functions (use RemoteFunction instead of RemoteEvent)
+GameConfig.RemoteFunctions = {
+	BuyUpgrade = "BuyUpgrade",
 }
 
 -- Player settings defaults

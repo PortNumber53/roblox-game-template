@@ -1,11 +1,12 @@
 -- WaitingRoomUI: builds and manages the waiting room GUI
--- Tabs: Lobby, Settings, Leaderboards
+-- Tabs: Lobby, Upgrades, Settings, Leaderboards
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig = require(ReplicatedStorage:WaitForChild("GameConfig"))
 local RemoteSetup = require(ReplicatedStorage:WaitForChild("RemoteSetup"))
+local UpgradeDefinitions = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("UpgradeDefinitions"))
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -25,6 +26,10 @@ local playerSettings = {
 	MusicEnabled = true,
 	SFXEnabled = true,
 }
+
+-- Current stats from server
+local currentStats = nil
+local upgradeButtons = {}
 
 --------------------------------------------------
 -- UI Construction Helpers
@@ -83,7 +88,6 @@ local function switchTab(tabName)
 		end
 	end
 
-	-- Request fresh leaderboard data when switching to that tab
 	if tabName == "Leaderboards" then
 		RemoteSetup.GetRemote(GameConfig.Remotes.RequestLeaderboard):FireServer()
 	end
@@ -116,7 +120,7 @@ local function buildLobbyPanel(parent)
 
 	createInstance("TextLabel", {
 		Name = "Description",
-		Text = "Paint as many wall cells as you can!\nWait for other players or start when ready.",
+		Text = "Paint the walls, grow bigger, earn coins!\nBuy upgrades between rounds.",
 		Size = UDim2.new(1, -40, 0, 50),
 		Position = UDim2.new(0, 20, 0, 60),
 		BackgroundTransparency = 1,
@@ -127,7 +131,6 @@ local function buildLobbyPanel(parent)
 		Parent = panel,
 	})
 
-	-- Player count display
 	createInstance("TextLabel", {
 		Name = "PlayerCount",
 		Text = "Players: " .. #Players:GetPlayers() .. "/" .. GameConfig.MAX_PLAYERS,
@@ -140,7 +143,6 @@ local function buildLobbyPanel(parent)
 		Parent = panel,
 	})
 
-	-- Countdown display
 	countdownLabel = createInstance("TextLabel", {
 		Name = "Countdown",
 		Text = "",
@@ -153,7 +155,6 @@ local function buildLobbyPanel(parent)
 		Parent = panel,
 	})
 
-	-- Start button
 	makeTextButton(
 		"Ready Up",
 		UDim2.new(0.5, -80, 0, 240),
@@ -164,7 +165,6 @@ local function buildLobbyPanel(parent)
 		end
 	)
 
-	-- Update player count on change
 	Players.PlayerAdded:Connect(function()
 		panel.PlayerCount.Text = "Players: " .. #Players:GetPlayers() .. "/" .. GameConfig.MAX_PLAYERS
 	end)
@@ -173,6 +173,181 @@ local function buildLobbyPanel(parent)
 			panel.PlayerCount.Text = "Players: " .. #Players:GetPlayers() .. "/" .. GameConfig.MAX_PLAYERS
 		end)
 	end)
+
+	return panel
+end
+
+--------------------------------------------------
+-- Upgrades Panel
+--------------------------------------------------
+
+local function refreshUpgradeButtons()
+	if not currentStats then return end
+
+	for upgradeId, entry in pairs(upgradeButtons) do
+		local def = UpgradeDefinitions[upgradeId]
+		if not def then continue end
+
+		local level = 0
+		if currentStats.upgrades and currentStats.upgrades[upgradeId] then
+			level = currentStats.upgrades[upgradeId]
+		end
+
+		local maxed = level >= def.maxLevel
+		local cost = def.baseCost + def.costStep * level
+		local canAfford = currentStats.coins and currentStats.coins >= cost
+
+		entry.levelLabel.Text = string.format("Lv %d / %d", level, def.maxLevel)
+
+		if maxed then
+			entry.button.Text = "MAXED"
+			entry.button.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+		else
+			entry.button.Text = string.format("Buy (%d coins)", cost)
+			if canAfford then
+				entry.button.BackgroundColor3 = Color3.fromRGB(50, 140, 80)
+			else
+				entry.button.BackgroundColor3 = Color3.fromRGB(100, 50, 50)
+			end
+		end
+	end
+
+	-- Update coins display in upgrades panel
+	local upgradesPanel = tabPanels["Upgrades"]
+	if upgradesPanel then
+		local coinsDisplay = upgradesPanel:FindFirstChild("CoinsDisplay")
+		if coinsDisplay then
+			coinsDisplay.Text = "Coins: " .. (currentStats.coins or 0)
+		end
+	end
+end
+
+local function buildUpgradesPanel(parent)
+	local panel = createInstance("Frame", {
+		Name = "UpgradesPanel",
+		Size = UDim2.new(1, 0, 1, -50),
+		Position = UDim2.new(0, 0, 0, 50),
+		BackgroundTransparency = 1,
+		Visible = false,
+		Parent = parent,
+	})
+
+	createInstance("TextLabel", {
+		Name = "Title",
+		Text = "Upgrades",
+		Size = UDim2.new(1, 0, 0, 30),
+		Position = UDim2.new(0, 0, 0, 5),
+		BackgroundTransparency = 1,
+		TextColor3 = Color3.fromRGB(255, 255, 255),
+		Font = Enum.Font.GothamBold,
+		TextSize = 22,
+		Parent = panel,
+	})
+
+	createInstance("TextLabel", {
+		Name = "CoinsDisplay",
+		Text = "Coins: 0",
+		Size = UDim2.new(1, 0, 0, 24),
+		Position = UDim2.new(0, 0, 0, 35),
+		BackgroundTransparency = 1,
+		TextColor3 = Color3.fromRGB(255, 220, 100),
+		Font = Enum.Font.GothamBold,
+		TextSize = 18,
+		Parent = panel,
+	})
+
+	local scrollFrame = createInstance("ScrollingFrame", {
+		Name = "UpgradeList",
+		Size = UDim2.new(1, -20, 1, -70),
+		Position = UDim2.new(0, 10, 0, 65),
+		BackgroundTransparency = 1,
+		ScrollBarThickness = 6,
+		CanvasSize = UDim2.new(0, 0, 0, 0),
+		Parent = panel,
+	})
+
+	-- Build upgrade rows sorted by id for stable ordering
+	local sortedIds = {}
+	for id in pairs(UpgradeDefinitions) do
+		table.insert(sortedIds, id)
+	end
+	table.sort(sortedIds)
+
+	local yOffset = 0
+	local ROW_HEIGHT = 55
+
+	for _, upgradeId in ipairs(sortedIds) do
+		local def = UpgradeDefinitions[upgradeId]
+
+		local row = createInstance("Frame", {
+			Name = upgradeId,
+			Size = UDim2.new(1, -10, 0, ROW_HEIGHT - 5),
+			Position = UDim2.new(0, 5, 0, yOffset),
+			BackgroundColor3 = Color3.fromRGB(40, 40, 60),
+			BackgroundTransparency = 0.3,
+			Parent = scrollFrame,
+		})
+		createInstance("UICorner", { CornerRadius = UDim.new(0, 6), Parent = row })
+
+		-- Upgrade name
+		createInstance("TextLabel", {
+			Text = def.displayName,
+			Size = UDim2.new(0.45, -5, 0, 22),
+			Position = UDim2.new(0, 10, 0, 5),
+			BackgroundTransparency = 1,
+			TextColor3 = Color3.fromRGB(220, 220, 240),
+			Font = Enum.Font.GothamBold,
+			TextSize = 14,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Parent = row,
+		})
+
+		-- Level label
+		local levelLabel = createInstance("TextLabel", {
+			Name = "Level",
+			Text = "Lv 0 / " .. def.maxLevel,
+			Size = UDim2.new(0.45, -5, 0, 18),
+			Position = UDim2.new(0, 10, 0, 27),
+			BackgroundTransparency = 1,
+			TextColor3 = Color3.fromRGB(160, 160, 180),
+			Font = Enum.Font.Gotham,
+			TextSize = 12,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Parent = row,
+		})
+
+		-- Buy button
+		local buyBtn = createInstance("TextButton", {
+			Name = "BuyBtn",
+			Text = string.format("Buy (%d coins)", def.baseCost),
+			Size = UDim2.new(0.45, -10, 0, 32),
+			Position = UDim2.new(0.55, 0, 0.5, -16),
+			BackgroundColor3 = Color3.fromRGB(50, 140, 80),
+			TextColor3 = Color3.fromRGB(255, 255, 255),
+			Font = Enum.Font.GothamBold,
+			TextSize = 13,
+			Parent = row,
+		})
+		createInstance("UICorner", { CornerRadius = UDim.new(0, 6), Parent = buyBtn })
+
+		buyBtn.MouseButton1Click:Connect(function()
+			local rf = RemoteSetup.GetRemoteFunction(GameConfig.RemoteFunctions.BuyUpgrade)
+			local success, msg = rf:InvokeServer(upgradeId)
+			if not success then
+				buyBtn.Text = msg or "Failed"
+				task.delay(1, refreshUpgradeButtons)
+			end
+		end)
+
+		upgradeButtons[upgradeId] = {
+			button = buyBtn,
+			levelLabel = levelLabel,
+		}
+
+		yOffset = yOffset + ROW_HEIGHT
+	end
+
+	scrollFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset + 10)
 
 	return panel
 end
@@ -203,7 +378,6 @@ local function buildSettingsPanel(parent)
 		Parent = panel,
 	})
 
-	-- Paint color selector
 	createInstance("TextLabel", {
 		Text = "Paint Color:",
 		Size = UDim2.new(0, 120, 0, 30),
@@ -253,12 +427,10 @@ local function buildSettingsPanel(parent)
 		end
 
 		colorBtn.MouseButton1Click:Connect(function()
-			-- Remove old selection indicator
 			if selectedColorButton then
 				local oldStroke = selectedColorButton:FindFirstChild("Selected")
 				if oldStroke then oldStroke:Destroy() end
 			end
-			-- Add new selection
 			createInstance("UIStroke", {
 				Name = "Selected",
 				Color = Color3.fromRGB(255, 255, 255),
@@ -270,7 +442,6 @@ local function buildSettingsPanel(parent)
 		end)
 	end
 
-	-- Music toggle
 	local musicBtn = makeTextButton(
 		"Music: ON",
 		UDim2.new(0, 20, 0, 160),
@@ -283,7 +454,6 @@ local function buildSettingsPanel(parent)
 		musicBtn.Text = "Music: " .. (playerSettings.MusicEnabled and "ON" or "OFF")
 	end)
 
-	-- SFX toggle
 	local sfxBtn = makeTextButton(
 		"SFX: ON",
 		UDim2.new(0, 200, 0, 160),
@@ -313,7 +483,6 @@ local function buildLeaderboardEntry(parent, rank, name, value, yOffset)
 	})
 	createInstance("UICorner", { CornerRadius = UDim.new(0, 4), Parent = entryFrame })
 
-	-- Rank
 	createInstance("TextLabel", {
 		Text = "#" .. rank,
 		Size = UDim2.new(0, 40, 1, 0),
@@ -326,7 +495,6 @@ local function buildLeaderboardEntry(parent, rank, name, value, yOffset)
 		Parent = entryFrame,
 	})
 
-	-- Name
 	createInstance("TextLabel", {
 		Text = name,
 		Size = UDim2.new(0.6, -60, 1, 0),
@@ -340,7 +508,6 @@ local function buildLeaderboardEntry(parent, rank, name, value, yOffset)
 		Parent = entryFrame,
 	})
 
-	-- Value
 	createInstance("TextLabel", {
 		Text = tostring(value),
 		Size = UDim2.new(0.3, 0, 1, 0),
@@ -364,11 +531,9 @@ local function buildLeaderboardsPanel(parent)
 		Parent = parent,
 	})
 
-	-- Sub-tab buttons for the two leaderboards
 	local overallBtn = makeTextButton("Most Painted (Overall)", UDim2.new(0, 10, 0, 5), UDim2.new(0.5, -15, 0, 32), panel, nil)
 	local sessionBtn = makeTextButton("Best Single Session", UDim2.new(0.5, 5, 0, 5), UDim2.new(0.5, -15, 0, 32), panel, nil)
 
-	-- Scrolling frames for each leaderboard
 	local overallScroll = createInstance("ScrollingFrame", {
 		Name = "OverallScroll",
 		Size = UDim2.new(1, 0, 1, -50),
@@ -390,7 +555,6 @@ local function buildLeaderboardsPanel(parent)
 		Parent = panel,
 	})
 
-	-- Personal stats label
 	local personalLabel = createInstance("TextLabel", {
 		Name = "PersonalStats",
 		Text = "",
@@ -403,7 +567,6 @@ local function buildLeaderboardsPanel(parent)
 		Parent = panel,
 	})
 
-	-- Sub-tab switching
 	local function showOverall()
 		overallScroll.Visible = true
 		sessionScroll.Visible = false
@@ -419,11 +582,9 @@ local function buildLeaderboardsPanel(parent)
 
 	overallBtn.MouseButton1Click:Connect(showOverall)
 	sessionBtn.MouseButton1Click:Connect(showSession)
-	showOverall() -- default
+	showOverall()
 
-	-- Listen for leaderboard data updates
 	RemoteSetup.GetRemote(GameConfig.Remotes.LeaderboardUpdate).OnClientEvent:Connect(function(data)
-		-- Clear existing entries
 		for _, child in ipairs(overallScroll:GetChildren()) do
 			if child:IsA("Frame") then child:Destroy() end
 		end
@@ -431,7 +592,6 @@ local function buildLeaderboardsPanel(parent)
 			if child:IsA("Frame") then child:Destroy() end
 		end
 
-		-- Populate overall
 		if data.Overall then
 			for _, entry in ipairs(data.Overall) do
 				buildLeaderboardEntry(overallScroll, entry.Rank, entry.Name, entry.Value, (entry.Rank - 1) * 32)
@@ -439,7 +599,6 @@ local function buildLeaderboardsPanel(parent)
 			overallScroll.CanvasSize = UDim2.new(0, 0, 0, #data.Overall * 32 + 10)
 		end
 
-		-- Populate best session
 		if data.BestSession then
 			for _, entry in ipairs(data.BestSession) do
 				buildLeaderboardEntry(sessionScroll, entry.Rank, entry.Name, entry.Value, (entry.Rank - 1) * 32)
@@ -447,7 +606,6 @@ local function buildLeaderboardsPanel(parent)
 			sessionScroll.CanvasSize = UDim2.new(0, 0, 0, #data.BestSession * 32 + 10)
 		end
 
-		-- Update personal stats
 		if data.PlayerStats then
 			personalLabel.Text = string.format(
 				"Your stats — Overall: %d walls | Best session: %d walls",
@@ -474,8 +632,8 @@ function WaitingRoomUI.Init()
 
 	mainFrame = createInstance("Frame", {
 		Name = "MainFrame",
-		Size = UDim2.new(0, 500, 0, 400),
-		Position = UDim2.new(0.5, -250, 0.5, -200),
+		Size = UDim2.new(0, 500, 0, 420),
+		Position = UDim2.new(0.5, -250, 0.5, -210),
 		BackgroundColor3 = Color3.fromRGB(30, 30, 50),
 		BackgroundTransparency = 0.05,
 		Parent = screenGui,
@@ -488,7 +646,7 @@ function WaitingRoomUI.Init()
 	})
 
 	-- Tab bar
-	local tabNames = { "Lobby", "Settings", "Leaderboards" }
+	local tabNames = { "Lobby", "Upgrades", "Settings", "Leaderboards" }
 	local tabWidth = 1 / #tabNames
 
 	for i, name in ipairs(tabNames) do
@@ -500,7 +658,7 @@ function WaitingRoomUI.Init()
 			BackgroundColor3 = (i == 1) and Color3.fromRGB(80, 120, 200) or Color3.fromRGB(60, 60, 80),
 			TextColor3 = Color3.fromRGB(255, 255, 255),
 			Font = Enum.Font.GothamBold,
-			TextSize = 16,
+			TextSize = 14,
 			Parent = mainFrame,
 		})
 		createInstance("UICorner", { CornerRadius = UDim.new(0, 6), Parent = btn })
@@ -512,6 +670,7 @@ function WaitingRoomUI.Init()
 
 	-- Build panels
 	tabPanels["Lobby"] = buildLobbyPanel(mainFrame)
+	tabPanels["Upgrades"] = buildUpgradesPanel(mainFrame)
 	tabPanels["Settings"] = buildSettingsPanel(mainFrame)
 	tabPanels["Leaderboards"] = buildLeaderboardsPanel(mainFrame)
 
@@ -530,6 +689,7 @@ function WaitingRoomUI.Init()
 	RemoteSetup.GetRemote(GameConfig.Remotes.GameStateChanged).OnClientEvent:Connect(function(newState)
 		if newState == GameConfig.GameState.WaitingRoom then
 			screenGui.Enabled = true
+			refreshUpgradeButtons()
 		else
 			screenGui.Enabled = false
 		end
@@ -545,6 +705,11 @@ end
 
 function WaitingRoomUI.GetSettings()
 	return playerSettings
+end
+
+function WaitingRoomUI.UpdateStats(stats)
+	currentStats = stats
+	refreshUpgradeButtons()
 end
 
 return WaitingRoomUI

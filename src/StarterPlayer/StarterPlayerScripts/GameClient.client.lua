@@ -1,4 +1,4 @@
--- GameClient: main client-side controller for the wall painting game
+-- GameClient: main client-side controller with session flow and brush painting
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -6,29 +6,34 @@ local UserInputService = game:GetService("UserInputService")
 
 local GameConfig = require(ReplicatedStorage:WaitForChild("GameConfig"))
 local RemoteSetup = require(ReplicatedStorage:WaitForChild("RemoteSetup"))
+local UpgradeDefinitions = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("UpgradeDefinitions"))
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
 -- Initialize the waiting room UI
-local WaitingRoomUI = require(playerGui:WaitForChild("WaitingRoomGui"):WaitForChild("WaitingRoomUI"))
+local WaitingRoomUI = require(ReplicatedStorage:WaitForChild("WaitingRoomUI"))
 WaitingRoomUI.Init()
+
+--------------------------------------------------
+-- Local state
+--------------------------------------------------
+
+local currentState = GameConfig.GameState.WaitingRoom
+local sessionScore = 0
+local localStats = nil -- latest stats from server
 
 --------------------------------------------------
 -- In-game HUD
 --------------------------------------------------
 
-local currentState = GameConfig.GameState.WaitingRoom
-local sessionScore = 0
-local currentLayout = nil -- the wall pattern for this session
-
--- Simple in-game HUD
 local gameHud = Instance.new("ScreenGui")
 gameHud.Name = "GameHUD"
 gameHud.ResetOnSpawn = false
 gameHud.Enabled = false
 gameHud.Parent = playerGui
 
+-- Score label (top center)
 local scoreLabel = Instance.new("TextLabel")
 scoreLabel.Name = "ScoreLabel"
 scoreLabel.Size = UDim2.new(0, 200, 0, 40)
@@ -40,11 +45,9 @@ scoreLabel.Font = Enum.Font.GothamBold
 scoreLabel.TextSize = 20
 scoreLabel.Text = "Walls Painted: 0"
 scoreLabel.Parent = gameHud
+Instance.new("UICorner", scoreLabel).CornerRadius = UDim.new(0, 8)
 
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 8)
-corner.Parent = scoreLabel
-
+-- Timer label
 local timerLabel = Instance.new("TextLabel")
 timerLabel.Name = "TimerLabel"
 timerLabel.Size = UDim2.new(0, 120, 0, 30)
@@ -57,7 +60,7 @@ timerLabel.Text = ""
 timerLabel.Parent = gameHud
 
 --------------------------------------------------
--- Wall grid interaction (click-to-paint)
+-- Wall painting interaction (raycast physical walls)
 --------------------------------------------------
 
 local function onInputBegan(input, gameProcessed)
@@ -68,17 +71,15 @@ local function onInputBegan(input, gameProcessed)
 		return
 	end
 
-	-- Handle mouse click or touch tap
 	if input.UserInputType == Enum.UserInputType.MouseButton1
 		or input.UserInputType == Enum.UserInputType.Touch then
 
-		-- Cast a ray from the camera to find a wall part
 		local camera = workspace.CurrentCamera
 		local ray = camera:ViewportPointToRay(input.Position.X, input.Position.Y)
 		local raycastParams = RaycastParams.new()
 		raycastParams.FilterType = Enum.RaycastFilterType.Include
 
-		local wallFolder = workspace:FindFirstChild("WallGrid")
+		local wallFolder = workspace:FindFirstChild("Walls")
 		if not wallFolder then
 			return
 		end
@@ -87,12 +88,9 @@ local function onInputBegan(input, gameProcessed)
 		local result = workspace:Raycast(ray.Origin, ray.Direction * 200, raycastParams)
 
 		if result and result.Instance then
-			local part = result.Instance
-			local row = part:GetAttribute("Row")
-			local col = part:GetAttribute("Col")
-			if row and col then
-				local color = WaitingRoomUI.GetSelectedColor()
-				RemoteSetup.GetRemote(GameConfig.Remotes.RequestPaintWall):FireServer(row, col, color)
+			local tile = result.Instance
+			if tile:GetAttribute("Paintable") then
+				RemoteSetup.GetRemote(GameConfig.Remotes.Paint):FireServer(result.Position, tile)
 			end
 		end
 	end
@@ -112,6 +110,7 @@ RemoteSetup.GetRemote(GameConfig.Remotes.GameStateChanged).OnClientEvent:Connect
 		gameHud.Enabled = true
 		sessionScore = 0
 		scoreLabel.Text = "Walls Painted: 0"
+		timerLabel.Text = ""
 	elseif newState == GameConfig.GameState.GameOver then
 		gameHud.Enabled = true
 		timerLabel.Text = "Game Over!"
@@ -127,55 +126,28 @@ RemoteSetup.GetRemote(GameConfig.Remotes.SessionScoreUpdate).OnClientEvent:Conne
 	scoreLabel.Text = "Walls Painted: " .. score
 end)
 
--- Wall layout update (received at session start with the pattern)
-RemoteSetup.GetRemote(GameConfig.Remotes.WallLayoutUpdate).OnClientEvent:Connect(function(layout, patternName)
-	currentLayout = layout
-	print("[GameClient] Pattern: " .. tostring(patternName))
-
-	local wallFolder = workspace:FindFirstChild("WallGrid")
-	if not wallFolder then
-		return
-	end
-
-	-- Apply the layout visuals to each wall part
-	for r = 1, GameConfig.WALL_GRID_ROWS do
-		if layout[r] then
-			for c = 1, GameConfig.WALL_GRID_COLS do
-				local partName = "Wall_" .. r .. "_" .. c
-				local part = wallFolder:FindFirstChild(partName)
-				if part then
-					local cellType = layout[r][c]
-					if cellType == "blocked" then
-						part.Color = Color3.fromRGB(40, 40, 50)
-						part.Material = Enum.Material.Slate
-						part.Transparency = 0
-					elseif cellType == "bonus" then
-						part.Color = Color3.fromRGB(255, 215, 0)
-						part.Material = Enum.Material.Neon
-						part.Transparency = 0
-					else -- "open"
-						part.Color = Color3.fromRGB(180, 180, 195)
-						part.Material = Enum.Material.SmoothPlastic
-						part.Transparency = 0
-					end
-				end
-			end
-		end
-	end
+-- Stats sync from server
+RemoteSetup.GetRemote(GameConfig.Remotes.StatsSync).OnClientEvent:Connect(function(stats)
+	localStats = stats
+	WaitingRoomUI.UpdateStats(stats)
 end)
 
--- Wall state updates (color a part when someone paints)
-RemoteSetup.GetRemote(GameConfig.Remotes.WallStateUpdate).OnClientEvent:Connect(function(row, col, painterId, cellType, color)
-	local wallFolder = workspace:FindFirstChild("WallGrid")
-	if not wallFolder then
-		return
-	end
+-- Milestone reached
+RemoteSetup.GetRemote(GameConfig.Remotes.MilestoneReached).OnClientEvent:Connect(function(coinsEarned, newSize)
+	-- Brief notification
+	timerLabel.Text = "+" .. coinsEarned .. " coins!"
+	task.delay(2, function()
+		if currentState == GameConfig.GameState.InGame then
+			timerLabel.Text = ""
+		end
+	end)
+end)
 
-	local partName = "Wall_" .. row .. "_" .. col
-	local part = wallFolder:FindFirstChild(partName)
-	if part then
-		part.Color = color
-		part.Material = Enum.Material.SmoothPlastic
+-- Paint feedback
+RemoteSetup.GetRemote(GameConfig.Remotes.Feedback).OnClientEvent:Connect(function(feedbackType, paint, size)
+	if feedbackType == "paint" and localStats then
+		localStats.paint = paint
+		localStats.size = size
 	end
 end)
 

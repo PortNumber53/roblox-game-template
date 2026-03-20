@@ -68,8 +68,10 @@ local function makeSpawn(position, playerIndex, parent)
 	spawn.Position = position
 	spawn.Anchored = true
 	spawn.Neutral = false
+	spawn.Enabled = false
 	spawn.TeamColor = BrickColor.White()
 	spawn.Duration = 0
+	spawn.Transparency = 1
 	spawn.Parent = parent
 	return spawn
 end
@@ -146,6 +148,91 @@ function WorldBuilder.Build()
 		makeBasePad(pos + Vector3.new(0, 0.5, 0), color, i, baseFolder)
 		makeSpawn(pos + Vector3.new(0, 1.5, 0), i, baseFolder)
 	end
+
+	-- Waiting room (elevated platform above the arena)
+	local existingLobby = workspace:FindFirstChild("Lobby")
+	if existingLobby then
+		existingLobby:Destroy()
+	end
+
+	local lobbyFolder = Instance.new("Folder")
+	lobbyFolder.Name = "Lobby"
+	lobbyFolder.Parent = workspace
+
+	local LOBBY_Y = 80
+	local LOBBY_SIZE = Vector3.new(60, 2, 60)
+
+	-- Main lobby floor
+	local lobbyFloor = Instance.new("Part")
+	lobbyFloor.Name = "LobbyFloor"
+	lobbyFloor.Size = LOBBY_SIZE
+	lobbyFloor.Position = Vector3.new(0, LOBBY_Y, 0)
+	lobbyFloor.Anchored = true
+	lobbyFloor.TopSurface = Enum.SurfaceType.Smooth
+	lobbyFloor.BottomSurface = Enum.SurfaceType.Smooth
+	lobbyFloor.Color = Color3.fromRGB(60, 60, 80)
+	lobbyFloor.Material = Enum.Material.SmoothPlastic
+	lobbyFloor.Parent = lobbyFolder
+
+	-- Invisible walls around the lobby so players don't fall off
+	for _, wallData in ipairs({
+		{ pos = Vector3.new(0, LOBBY_Y + 5, LOBBY_SIZE.Z / 2), size = Vector3.new(LOBBY_SIZE.X, 10, 1) },
+		{ pos = Vector3.new(0, LOBBY_Y + 5, -LOBBY_SIZE.Z / 2), size = Vector3.new(LOBBY_SIZE.X, 10, 1) },
+		{ pos = Vector3.new(LOBBY_SIZE.X / 2, LOBBY_Y + 5, 0), size = Vector3.new(1, 10, LOBBY_SIZE.Z) },
+		{ pos = Vector3.new(-LOBBY_SIZE.X / 2, LOBBY_Y + 5, 0), size = Vector3.new(1, 10, LOBBY_SIZE.Z) },
+	}) do
+		local barrier = Instance.new("Part")
+		barrier.Name = "LobbyBarrier"
+		barrier.Size = wallData.size
+		barrier.Position = wallData.pos
+		barrier.Anchored = true
+		barrier.Transparency = 1
+		barrier.CanCollide = true
+		barrier.Parent = lobbyFolder
+	end
+
+	-- Portal pad (glowing pad players walk onto to signal ready)
+	local portal = Instance.new("Part")
+	portal.Name = "PortalPad"
+	portal.Size = Vector3.new(10, 1, 10)
+	portal.Position = Vector3.new(0, LOBBY_Y + 1, 20)
+	portal.Anchored = true
+	portal.TopSurface = Enum.SurfaceType.Smooth
+	portal.BottomSurface = Enum.SurfaceType.Smooth
+	portal.Color = Color3.fromRGB(100, 200, 255)
+	portal.Material = Enum.Material.Neon
+	portal.Transparency = 0.2
+	portal.Parent = lobbyFolder
+
+	-- Portal label (billboard)
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "PortalLabel"
+	billboard.Size = UDim2.new(0, 200, 0, 50)
+	billboard.StudsOffset = Vector3.new(0, 5, 0)
+	billboard.AlwaysOnTop = true
+	billboard.Parent = portal
+
+	local portalText = Instance.new("TextLabel")
+	portalText.Name = "Label"
+	portalText.Size = UDim2.new(1, 0, 1, 0)
+	portalText.BackgroundTransparency = 1
+	portalText.TextColor3 = Color3.fromRGB(100, 220, 255)
+	portalText.Font = Enum.Font.GothamBold
+	portalText.TextSize = 22
+	portalText.TextStrokeTransparency = 0.5
+	portalText.Text = "Step here to play!"
+	portalText.Parent = billboard
+
+	-- Lobby spawn (where players appear when in waiting room)
+	local lobbySpawn = Instance.new("SpawnLocation")
+	lobbySpawn.Name = "LobbySpawn"
+	lobbySpawn.Size = Vector3.new(8, 1, 8)
+	lobbySpawn.Position = Vector3.new(0, LOBBY_Y + 1, -10)
+	lobbySpawn.Anchored = true
+	lobbySpawn.Neutral = true
+	lobbySpawn.Duration = 0
+	lobbySpawn.Transparency = 1
+	lobbySpawn.Parent = lobbyFolder
 
 	return wallFolder, baseFolder
 end
