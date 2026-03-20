@@ -9,7 +9,7 @@ local function getWallFolder()
 end
 
 local function getPaintAreaRadius(stats)
-	return math.max(1.5, stats.size * 1.75)
+	return 1.75
 end
 
 local function getSplashTileBudget(stats, radius, paintAreaRadius, sampleTile)
@@ -32,7 +32,7 @@ function PaintService.TryPaint(player, stats, position, targetTile)
 	if not targetTile:GetAttribute("Paintable") then return 0 end
 	if not targetTile:IsDescendantOf(wallFolder) then return 0 end
 
-	local radius = stats:GetBrushRadius()
+	local radius = stats:GetSplashRadius()
 	local paintAreaRadius = getPaintAreaRadius(stats)
 	local painted = 0
 	local targetWall = targetTile.Parent

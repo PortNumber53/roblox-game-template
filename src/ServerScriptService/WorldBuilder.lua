@@ -234,6 +234,73 @@ function WorldBuilder.Build()
 	lobbySpawn.Transparency = 1
 	lobbySpawn.Parent = lobbyFolder
 
+	-- Leaderboard display panels (physical boards on left and right)
+	local boardHeight = 8
+	local boardWidth = 12
+	local boardY = LOBBY_Y + 6
+
+	for _, boardData in ipairs({
+		{ name = "OverallBoard", pos = Vector3.new(-25, boardY, 0), label = "Most Walls Painted" },
+		{ name = "SessionBoard", pos = Vector3.new(25, boardY, 0), label = "Best Single Session" },
+	}) do
+		local board = Instance.new("Part")
+		board.Name = boardData.name
+		board.Size = Vector3.new(boardWidth, boardHeight, 0.5)
+		board.Position = boardData.pos
+		board.Anchored = true
+		board.CanCollide = false
+		board.Color = Color3.fromRGB(20, 20, 30)
+		board.Material = Enum.Material.SmoothPlastic
+		board.Parent = lobbyFolder
+
+		-- Title billboard above the board
+		local titleBB = Instance.new("BillboardGui")
+		titleBB.Name = "Title"
+		titleBB.Size = UDim2.new(0, 250, 0, 30)
+		titleBB.StudsOffset = Vector3.new(0, boardHeight / 2 + 1, 0)
+		titleBB.AlwaysOnTop = false
+		titleBB.Parent = board
+
+		local titleLabel = Instance.new("TextLabel")
+		titleLabel.Size = UDim2.new(1, 0, 1, 0)
+		titleLabel.BackgroundTransparency = 1
+		titleLabel.TextColor3 = Color3.fromRGB(255, 220, 100)
+		titleLabel.Font = Enum.Font.GothamBold
+		titleLabel.TextSize = 18
+		titleLabel.Text = boardData.label
+		titleLabel.Parent = titleBB
+
+		-- SurfaceGui for leaderboard entries
+		local surfaceGui = Instance.new("SurfaceGui")
+		surfaceGui.Name = "LeaderboardDisplay"
+		surfaceGui.Face = Enum.NormalId.Front
+		surfaceGui.CanvasSize = Vector2.new(400, 300)
+		surfaceGui.Parent = board
+
+		local bgFrame = Instance.new("Frame")
+		bgFrame.Name = "Background"
+		bgFrame.Size = UDim2.new(1, 0, 1, 0)
+		bgFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 35)
+		bgFrame.BackgroundTransparency = 0.1
+		bgFrame.BorderSizePixel = 0
+		bgFrame.Parent = surfaceGui
+
+		-- Also add a back-facing SurfaceGui
+		local backGui = Instance.new("SurfaceGui")
+		backGui.Name = "LeaderboardDisplayBack"
+		backGui.Face = Enum.NormalId.Back
+		backGui.CanvasSize = Vector2.new(400, 300)
+		backGui.Parent = board
+
+		local bgFrameBack = Instance.new("Frame")
+		bgFrameBack.Name = "Background"
+		bgFrameBack.Size = UDim2.new(1, 0, 1, 0)
+		bgFrameBack.BackgroundColor3 = Color3.fromRGB(20, 20, 35)
+		bgFrameBack.BackgroundTransparency = 0.1
+		bgFrameBack.BorderSizePixel = 0
+		bgFrameBack.Parent = backGui
+	end
+
 	return wallFolder, baseFolder
 end
 

@@ -1,35 +1,21 @@
 local UpgradeDefinitions = {
-	MaxSize = {
-		id = "MaxSize",
-		displayName = "Bigger Max Size",
-		baseCost = 40,
-		costStep = 25,
-		maxLevel = 8,
-	},
-	SizeMultiplier = {
-		id = "SizeMultiplier",
-		displayName = "Size Multiplier",
-		baseCost = 65,
-		costStep = 35,
-		maxLevel = 8,
-	},
-	BrushSize = {
-		id = "BrushSize",
-		displayName = "Bigger Brush",
+	SplashRadius = {
+		id = "SplashRadius",
+		displayName = "Bigger Splash",
 		baseCost = 35,
 		costStep = 20,
 		maxLevel = 10,
 	},
-	BrushSpeed = {
-		id = "BrushSpeed",
-		displayName = "Faster Brush",
+	FireRate = {
+		id = "FireRate",
+		displayName = "Faster Fire Rate",
 		baseCost = 50,
 		costStep = 30,
 		maxLevel = 8,
 	},
-	BucketCapacity = {
-		id = "BucketCapacity",
-		displayName = "More Bucket Paint",
+	AmmoCapacity = {
+		id = "AmmoCapacity",
+		displayName = "More Ammo",
 		baseCost = 45,
 		costStep = 25,
 		maxLevel = 10,
@@ -39,6 +25,13 @@ local UpgradeDefinitions = {
 		displayName = "Faster Movement",
 		baseCost = 55,
 		costStep = 30,
+		maxLevel = 8,
+	},
+	Range = {
+		id = "Range",
+		displayName = "Longer Range",
+		baseCost = 40,
+		costStep = 20,
 		maxLevel = 8,
 	},
 }

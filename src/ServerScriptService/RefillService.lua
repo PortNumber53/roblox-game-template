@@ -22,7 +22,7 @@ function RefillService.TryRefill(player, stats)
 	local horizontalOffset = rootPart.Position - pad.Position
 	local halfX = pad.Size.X / 2
 	local halfZ = pad.Size.Z / 2
-	local margin = math.max(3, stats.size * 2)
+	local margin = 3
 
 	local insideX = math.abs(horizontalOffset.X) <= halfX + margin
 	local insideZ = math.abs(horizontalOffset.Z) <= halfZ + margin

@@ -3,28 +3,23 @@ local Config = {}
 Config.EnableStudioPersistence = true
 Config.BaseMoveSpeed = 16
 Config.BaseJumpPower = 50
-Config.BaseCharacterScale = 1
 Config.MoveSpeedCap = 34
-Config.SizePerPaintUnit = 0.008
-Config.SizeCapBase = 3
 Config.PaintCapacityBase = 120
 Config.PaintPerBrushTick = 2
 Config.PaintTilesPerCoin = 8
 Config.PaintSplashTileBudget = 6
 Config.PaintSplashCoverage = 0.18
 Config.PaintSplashJitter = 0.35
-Config.BrushRadiusBase = 7
-Config.BrushCooldownBase = 0.18
 Config.RefillRatePerTick = 12
 Config.RefillTickSeconds = 0.1
-Config.Milestones = {
-	{ size = 1.5, reward = 25 },
-	{ size = 2, reward = 50 },
-	{ size = 2.5, reward = 75 },
-	{ size = 3, reward = 100 },
-	{ size = 4, reward = 150 },
-	{ size = 5, reward = 250 },
-}
+
+-- Weapon defaults
+Config.SplashRadiusBase = 7
+Config.FireRateBase = 0.18
+Config.ProjectileRangeBase = 150
+Config.ProjectileSpeed = 200
+Config.ProjectileSize = 0.4
+
 Config.PaintColors = {
 	Color3.fromRGB(255, 96, 96),
 	Color3.fromRGB(96, 170, 255),
@@ -41,12 +36,11 @@ Config.WallThickness = 2
 Config.WallGap = 8
 Config.WallTileSize = 0.75
 Config.UpgradeStepValues = {
-	MaxSize = 0.45,
-	SizeMultiplier = 0.2,
-	BrushSize = 1.75,
-	BrushSpeed = 0.015,
-	BucketCapacity = 25,
+	SplashRadius = 1.75,
+	FireRate = 0.015,
+	AmmoCapacity = 25,
 	MoveSpeed = 2,
+	Range = 15,
 }
 
 return Config

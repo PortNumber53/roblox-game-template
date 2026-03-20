@@ -1,12 +1,10 @@
--- GameClient: main client-side controller with session flow and brush painting
+-- GameClient: main client-side controller for session flow and HUD
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local UserInputService = game:GetService("UserInputService")
 
 local GameConfig = require(ReplicatedStorage:WaitForChild("GameConfig"))
 local RemoteSetup = require(ReplicatedStorage:WaitForChild("RemoteSetup"))
-local UpgradeDefinitions = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("UpgradeDefinitions"))
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -21,7 +19,7 @@ WaitingRoomUI.Init()
 
 local currentState = GameConfig.GameState.WaitingRoom
 local sessionScore = 0
-local localStats = nil -- latest stats from server
+local localStats = nil
 
 --------------------------------------------------
 -- In-game HUD
@@ -60,45 +58,6 @@ timerLabel.Text = ""
 timerLabel.Parent = gameHud
 
 --------------------------------------------------
--- Wall painting interaction (raycast physical walls)
---------------------------------------------------
-
-local function onInputBegan(input, gameProcessed)
-	if gameProcessed then
-		return
-	end
-	if currentState ~= GameConfig.GameState.InGame then
-		return
-	end
-
-	if input.UserInputType == Enum.UserInputType.MouseButton1
-		or input.UserInputType == Enum.UserInputType.Touch then
-
-		local camera = workspace.CurrentCamera
-		local ray = camera:ViewportPointToRay(input.Position.X, input.Position.Y)
-		local raycastParams = RaycastParams.new()
-		raycastParams.FilterType = Enum.RaycastFilterType.Include
-
-		local wallFolder = workspace:FindFirstChild("Walls")
-		if not wallFolder then
-			return
-		end
-
-		raycastParams.FilterDescendantsInstances = { wallFolder }
-		local result = workspace:Raycast(ray.Origin, ray.Direction * 200, raycastParams)
-
-		if result and result.Instance then
-			local tile = result.Instance
-			if tile:GetAttribute("Paintable") then
-				RemoteSetup.GetRemote(GameConfig.Remotes.Paint):FireServer(result.Position, tile)
-			end
-		end
-	end
-end
-
-UserInputService.InputBegan:Connect(onInputBegan)
-
---------------------------------------------------
 -- Remote event listeners
 --------------------------------------------------
 
@@ -132,22 +91,10 @@ RemoteSetup.GetRemote(GameConfig.Remotes.StatsSync).OnClientEvent:Connect(functi
 	WaitingRoomUI.UpdateStats(stats)
 end)
 
--- Milestone reached
-RemoteSetup.GetRemote(GameConfig.Remotes.MilestoneReached).OnClientEvent:Connect(function(coinsEarned, newSize)
-	-- Brief notification
-	timerLabel.Text = "+" .. coinsEarned .. " coins!"
-	task.delay(2, function()
-		if currentState == GameConfig.GameState.InGame then
-			timerLabel.Text = ""
-		end
-	end)
-end)
-
 -- Paint feedback
-RemoteSetup.GetRemote(GameConfig.Remotes.Feedback).OnClientEvent:Connect(function(feedbackType, paint, size)
+RemoteSetup.GetRemote(GameConfig.Remotes.Feedback).OnClientEvent:Connect(function(feedbackType, paint)
 	if feedbackType == "paint" and localStats then
 		localStats.paint = paint
-		localStats.size = size
 	end
 end)
 

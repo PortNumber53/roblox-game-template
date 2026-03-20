@@ -98,11 +98,23 @@ function DataService.SanitizePlayerData(data, upgradeDefinitions, config)
 	local sanitized = {
 		version = sanitizeNumber(data.version, 1, 1),
 		coins = sanitizeNumber(data.coins, 0, 0),
-		milestoneIndex = sanitizeNumber(data.milestoneIndex, 0, 0, #config.Milestones),
 		upgrades = {},
 	}
 
 	local sourceUpgrades = typeof(data.upgrades) == "table" and data.upgrades or {}
+
+	-- Migrate v1 save data keys to v2 weapon terminology
+	local MIGRATION_MAP = {
+		BrushSize = "SplashRadius",
+		BrushSpeed = "FireRate",
+		BucketCapacity = "AmmoCapacity",
+	}
+	for oldKey, newKey in pairs(MIGRATION_MAP) do
+		if sourceUpgrades[oldKey] and not sourceUpgrades[newKey] then
+			sourceUpgrades[newKey] = sourceUpgrades[oldKey]
+		end
+	end
+
 	for upgradeId, definition in pairs(upgradeDefinitions) do
 		sanitized.upgrades[upgradeId] = sanitizeNumber(sourceUpgrades[upgradeId], 0, 0, definition.maxLevel)
 	end

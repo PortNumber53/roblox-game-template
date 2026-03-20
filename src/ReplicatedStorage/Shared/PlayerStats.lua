@@ -10,15 +10,12 @@ function PlayerStats.new(colorIndex)
 	self.paintColor = Config.PaintColors[colorIndex] or Config.PaintColors[1]
 	self.coins = 0
 	self.paint = Config.PaintCapacityBase
-	self.size = Config.BaseCharacterScale
-	self.milestoneIndex = 0
 	self.upgrades = {
-		MaxSize = 0,
-		SizeMultiplier = 0,
-		BrushSize = 0,
-		BrushSpeed = 0,
-		BucketCapacity = 0,
+		SplashRadius = 0,
+		FireRate = 0,
+		AmmoCapacity = 0,
 		MoveSpeed = 0,
+		Range = 0,
 	}
 	return self
 end
@@ -32,27 +29,23 @@ function PlayerStats:GetUpgradeCost(upgradeId)
 end
 
 function PlayerStats:GetMaxPaint()
-	local bonus = self.upgrades.BucketCapacity * Config.UpgradeStepValues.BucketCapacity
+	local bonus = self.upgrades.AmmoCapacity * Config.UpgradeStepValues.AmmoCapacity
 	return Config.PaintCapacityBase + bonus
 end
 
-function PlayerStats:GetSizeCap()
-	local bonus = self.upgrades.MaxSize * Config.UpgradeStepValues.MaxSize
-	return Config.SizeCapBase + bonus
+function PlayerStats:GetSplashRadius()
+	local bonus = self.upgrades.SplashRadius * Config.UpgradeStepValues.SplashRadius
+	return Config.SplashRadiusBase + bonus
 end
 
-function PlayerStats:GetSizeMultiplier()
-	return 1 + self.upgrades.SizeMultiplier * Config.UpgradeStepValues.SizeMultiplier
+function PlayerStats:GetFireRate()
+	local reduction = self.upgrades.FireRate * Config.UpgradeStepValues.FireRate
+	return math.max(0.05, Config.FireRateBase - reduction)
 end
 
-function PlayerStats:GetBrushRadius()
-	local bonus = self.upgrades.BrushSize * Config.UpgradeStepValues.BrushSize
-	return Config.BrushRadiusBase + bonus
-end
-
-function PlayerStats:GetBrushCooldown()
-	local reduction = self.upgrades.BrushSpeed * Config.UpgradeStepValues.BrushSpeed
-	return math.max(0.05, Config.BrushCooldownBase - reduction)
+function PlayerStats:GetRange()
+	local bonus = self.upgrades.Range * Config.UpgradeStepValues.Range
+	return Config.ProjectileRangeBase + bonus
 end
 
 function PlayerStats:GetMoveSpeed()
@@ -66,7 +59,6 @@ function PlayerStats:ApplySavedData(data)
 	end
 
 	self.coins = data.coins or self.coins
-	self.milestoneIndex = data.milestoneIndex or self.milestoneIndex
 
 	if typeof(data.upgrades) == "table" then
 		for upgradeId, level in pairs(data.upgrades) do
@@ -77,21 +69,18 @@ function PlayerStats:ApplySavedData(data)
 	end
 
 	self.paint = self:GetMaxPaint()
-	self.size = Config.BaseCharacterScale
 end
 
 function PlayerStats:ToSaveData()
 	return {
-		version = 1,
+		version = 3,
 		coins = self.coins,
-		milestoneIndex = self.milestoneIndex,
 		upgrades = {
-			MaxSize = self.upgrades.MaxSize,
-			SizeMultiplier = self.upgrades.SizeMultiplier,
-			BrushSize = self.upgrades.BrushSize,
-			BrushSpeed = self.upgrades.BrushSpeed,
-			BucketCapacity = self.upgrades.BucketCapacity,
+			SplashRadius = self.upgrades.SplashRadius,
+			FireRate = self.upgrades.FireRate,
+			AmmoCapacity = self.upgrades.AmmoCapacity,
 			MoveSpeed = self.upgrades.MoveSpeed,
+			Range = self.upgrades.Range,
 		},
 	}
 end
@@ -100,20 +89,17 @@ function PlayerStats:Serialize()
 	return {
 		coins = self.coins,
 		paint = self.paint,
-		size = self.size,
-		milestoneIndex = self.milestoneIndex,
 		upgrades = {
-			MaxSize = self.upgrades.MaxSize,
-			SizeMultiplier = self.upgrades.SizeMultiplier,
-			BrushSize = self.upgrades.BrushSize,
-			BrushSpeed = self.upgrades.BrushSpeed,
-			BucketCapacity = self.upgrades.BucketCapacity,
+			SplashRadius = self.upgrades.SplashRadius,
+			FireRate = self.upgrades.FireRate,
+			AmmoCapacity = self.upgrades.AmmoCapacity,
 			MoveSpeed = self.upgrades.MoveSpeed,
+			Range = self.upgrades.Range,
 		},
 		maxPaint = self:GetMaxPaint(),
-		sizeCap = self:GetSizeCap(),
-		brushRadius = self:GetBrushRadius(),
-		brushCooldown = self:GetBrushCooldown(),
+		splashRadius = self:GetSplashRadius(),
+		fireRate = self:GetFireRate(),
+		range = self:GetRange(),
 		moveSpeed = self:GetMoveSpeed(),
 	}
 end

@@ -13,17 +13,19 @@ local UpgradeDefinitions = require(ReplicatedStorage.Shared.UpgradeDefinitions)
 local LeaderboardService = require(script.Parent:WaitForChild("LeaderboardService"))
 local WorldBuilder = require(script.Parent:WaitForChild("WorldBuilder"))
 local PaintService = require(script.Parent:WaitForChild("PaintService"))
-local GrowthService = require(script.Parent:WaitForChild("GrowthService"))
 local UpgradeService = require(script.Parent:WaitForChild("UpgradeService"))
 local RefillService = require(script.Parent:WaitForChild("RefillService"))
 local DataService = require(script.Parent:WaitForChild("DataService"))
+local ShootingService = require(script.Parent:WaitForChild("ShootingService"))
 
 local GameManager = {}
 
 -- Session state
 local currentState = GameConfig.GameState.WaitingRoom
 local countdownActive = false
+local countdownCancelled = false
 local sessionScores = {}
+local playersOnPortal = {}
 
 -- Progression state
 local playerStates = {}
@@ -31,6 +33,7 @@ local colorCounter = 0
 local brushCooldowns = {}
 local refillAccum = 0
 local AUTOSAVE_INTERVAL = 60
+local shuttingDown = false
 local LOBBY_Y = 80
 
 -- Arena spawn positions (mirrored from WorldBuilder)
@@ -95,7 +98,6 @@ local function applyCharacterStats(character, stats)
 		humanoid.WalkSpeed = stats:GetMoveSpeed()
 		humanoid.JumpPower = Config.BaseJumpPower
 	end
-	GrowthService.ApplyToCharacter(character, stats.size)
 end
 
 local function setupCharacter(player, character)
@@ -105,6 +107,9 @@ local function setupCharacter(player, character)
 	end
 
 	brushCooldowns[player.UserId] = 0
+
+	-- Refill ammo on respawn
+	stats.paint = stats:GetMaxPaint()
 
 	local humanoid = character:WaitForChild("Humanoid", 10)
 	if humanoid then
@@ -135,8 +140,20 @@ end
 -- Waiting room
 --------------------------------------------------
 
-local function getPlayerCount()
-	return #Players:GetPlayers()
+local function getPortalPlayerCount()
+	local count = 0
+	for _, onPortal in pairs(playersOnPortal) do
+		if onPortal then
+			count = count + 1
+		end
+	end
+	return count
+end
+
+local function cancelCountdown()
+	if countdownActive then
+		countdownCancelled = true
+	end
 end
 
 local function startCountdown()
@@ -144,12 +161,14 @@ local function startCountdown()
 		return
 	end
 	countdownActive = true
+	countdownCancelled = false
 
 	local countdownRemote = RemoteSetup.GetRemote(GameConfig.Remotes.CountdownTick)
 
 	for i = GameConfig.COUNTDOWN_SECONDS, 1, -1 do
-		if getPlayerCount() < GameConfig.MIN_PLAYERS_TO_START then
+		if countdownCancelled or getPortalPlayerCount() < GameConfig.MIN_PLAYERS_TO_START then
 			countdownActive = false
+			countdownCancelled = false
 			countdownRemote:FireAllClients(0)
 			return
 		end
@@ -158,6 +177,7 @@ local function startCountdown()
 	end
 
 	countdownActive = false
+	countdownCancelled = false
 	GameManager.StartSession()
 end
 
@@ -165,7 +185,7 @@ local function tryStartCountdown()
 	if currentState ~= GameConfig.GameState.WaitingRoom then
 		return
 	end
-	if getPlayerCount() >= GameConfig.MIN_PLAYERS_TO_START and not countdownActive then
+	if getPortalPlayerCount() >= GameConfig.MIN_PLAYERS_TO_START and not countdownActive then
 		task.spawn(startCountdown)
 	end
 end
@@ -175,6 +195,9 @@ end
 --------------------------------------------------
 
 function GameManager.StartSession()
+	-- Clear portal state
+	playersOnPortal = {}
+
 	-- Reset per-round state for all players
 	sessionScores = {}
 	for _, player in ipairs(Players:GetPlayers()) do
@@ -182,8 +205,6 @@ function GameManager.StartSession()
 		local stats = playerStates[player.UserId]
 		if stats then
 			stats.paint = stats:GetMaxPaint()
-			stats.size = Config.BaseCharacterScale
-			stats.milestoneIndex = 0
 			brushCooldowns[player.UserId] = 0
 
 			local character = player.Character
@@ -212,6 +233,7 @@ function GameManager.EndSession()
 		LeaderboardService.RecordSessionEnd(player, painted)
 		savePlayer(player)
 	end
+	LeaderboardService.Save()
 
 	-- Brief pause to show results
 	task.wait(5)
@@ -221,8 +243,6 @@ function GameManager.EndSession()
 		local stats = playerStates[player.UserId]
 		if stats then
 			stats.paint = stats:GetMaxPaint()
-			stats.size = Config.BaseCharacterScale
-			stats.milestoneIndex = 0
 
 			local character = player.Character
 			if character then
@@ -238,14 +258,15 @@ function GameManager.EndSession()
 	teleportAllToLobby()
 
 	setState(GameConfig.GameState.WaitingRoom)
+	updateLeaderboardBoards()
 	tryStartCountdown()
 end
 
 --------------------------------------------------
--- Paint handler (physical wall painting)
+-- Shooting handler (paintball)
 --------------------------------------------------
 
-local function onPaintRequest(player, brushPosition, targetTile)
+local function onShootPaintball(player, origin, direction)
 	if currentState ~= GameConfig.GameState.InGame then
 		return
 	end
@@ -253,44 +274,28 @@ local function onPaintRequest(player, brushPosition, targetTile)
 	local stats = playerStates[player.UserId]
 	if not stats then return end
 
-	local now = tick()
-	local lastTime = brushCooldowns[player.UserId] or 0
-	if now - lastTime < stats:GetBrushCooldown() then return end
-	brushCooldowns[player.UserId] = now
+	if typeof(origin) ~= "Vector3" or typeof(direction) ~= "Vector3" then return end
 
-	local character = player.Character
-	if not character then return end
-	local rootPart = character:FindFirstChild("HumanoidRootPart")
-	if not rootPart then return end
-	if (rootPart.Position - brushPosition).Magnitude > 30 then return end
+	local hitInfo = ShootingService.ProcessShot(player, stats, origin, direction, brushCooldowns)
+	if not hitInfo then return end
 
-	local painted = PaintService.TryPaint(player, stats, brushPosition, targetTile)
+	local painted = PaintService.TryPaint(player, stats, hitInfo.hitPosition, hitInfo.hitTile)
+
+	-- Send hit confirmation to client for VFX
+	RemoteSetup.GetRemote(GameConfig.Remotes.PaintballHit):FireClient(
+		player, hitInfo.hitPosition, painted > 0
+	)
 
 	if painted > 0 then
-		-- Award coins
 		local coinsFromPaint = math.max(1, math.floor(painted / math.max(1, Config.PaintTilesPerCoin)))
 		stats.coins = stats.coins + coinsFromPaint
 
-		-- Growth
-		local changed = GrowthService.ApplyGrowth(stats, painted)
-		if changed then
-			applyCharacterStats(character, stats)
-		end
-
-		-- Milestones
-		local coinsEarned = GrowthService.CheckMilestones(stats)
-		if coinsEarned > 0 then
-			RemoteSetup.GetRemote(GameConfig.Remotes.MilestoneReached):FireClient(player, coinsEarned, stats.size)
-		end
-
-		-- Session score + leaderboard
 		sessionScores[player.UserId] = (sessionScores[player.UserId] or 0) + painted
 		LeaderboardService.RecordWallPainted(player)
-
 		RemoteSetup.GetRemote(GameConfig.Remotes.SessionScoreUpdate):FireClient(player, sessionScores[player.UserId])
 	end
 
-	RemoteSetup.GetRemote(GameConfig.Remotes.Feedback):FireClient(player, "paint", stats.paint, stats.size)
+	RemoteSetup.GetRemote(GameConfig.Remotes.Feedback):FireClient(player, "paint", stats.paint)
 	syncStats(player, stats)
 end
 
@@ -309,6 +314,7 @@ local function onBuyUpgrade(player, upgradeId)
 			applyCharacterStats(character, stats)
 		end
 		syncStats(player, stats)
+		savePlayer(player)
 	end
 	return success, msg
 end
@@ -390,11 +396,84 @@ local function onPlayerAdded(player)
 end
 
 local function onPlayerRemoving(player)
-	savePlayer(player)
+	if not shuttingDown then
+		local painted = sessionScores[player.UserId] or 0
+		if painted > 0 then
+			LeaderboardService.RecordSessionEnd(player, painted)
+			LeaderboardService.Save()
+		end
+		savePlayer(player)
+	end
+
 	LeaderboardService.UnloadPlayer(player)
 	playerStates[player.UserId] = nil
 	brushCooldowns[player.UserId] = nil
 	sessionScores[player.UserId] = nil
+	playersOnPortal[player.UserId] = nil
+end
+
+--------------------------------------------------
+-- Leaderboard display boards
+--------------------------------------------------
+
+local function populateBoard(surfaceGui, entries)
+	local bg = surfaceGui:FindFirstChild("Background")
+	if not bg then return end
+
+	-- Clear old entries
+	for _, child in ipairs(bg:GetChildren()) do
+		child:Destroy()
+	end
+
+	for i, entry in ipairs(entries) do
+		if i > 10 then break end
+
+		local row = Instance.new("TextLabel")
+		row.Size = UDim2.new(1, -20, 0, 26)
+		row.Position = UDim2.new(0, 10, 0, (i - 1) * 28 + 8)
+		row.BackgroundTransparency = 1
+		row.Font = Enum.Font.GothamBold
+		row.TextSize = 18
+		row.TextXAlignment = Enum.TextXAlignment.Left
+		row.TextColor3 = i <= 3 and Color3.fromRGB(255, 220, 100) or Color3.fromRGB(200, 200, 220)
+		row.Text = string.format("#%d  %s  —  %d", entry.Rank, entry.Name, entry.Value)
+		row.Parent = bg
+	end
+
+	if #entries == 0 then
+		local empty = Instance.new("TextLabel")
+		empty.Size = UDim2.new(1, 0, 1, 0)
+		empty.BackgroundTransparency = 1
+		empty.Font = Enum.Font.Gotham
+		empty.TextSize = 20
+		empty.TextColor3 = Color3.fromRGB(120, 120, 140)
+		empty.Text = "No data yet"
+		empty.Parent = bg
+	end
+end
+
+local function updateLeaderboardBoards()
+	local lobby = game:GetService("Workspace"):FindFirstChild("Lobby")
+	if not lobby then return end
+
+	local overallBoard = lobby:FindFirstChild("OverallBoard")
+	local sessionBoard = lobby:FindFirstChild("SessionBoard")
+
+	if overallBoard then
+		local entries = LeaderboardService.GetOverallLeaderboard()
+		local front = overallBoard:FindFirstChild("LeaderboardDisplay")
+		local back = overallBoard:FindFirstChild("LeaderboardDisplayBack")
+		if front then populateBoard(front, entries) end
+		if back then populateBoard(back, entries) end
+	end
+
+	if sessionBoard then
+		local entries = LeaderboardService.GetSessionLeaderboard()
+		local front = sessionBoard:FindFirstChild("LeaderboardDisplay")
+		local back = sessionBoard:FindFirstChild("LeaderboardDisplayBack")
+		if front then populateBoard(front, entries) end
+		if back then populateBoard(back, entries) end
+	end
 end
 
 --------------------------------------------------
@@ -405,30 +484,65 @@ function GameManager.Init()
 	-- Create remotes
 	RemoteSetup.Init()
 
+	-- Load leaderboard history from DataStore
+	LeaderboardService.Init()
+
 	-- Build the physical world
 	WorldBuilder.Build()
 
 	-- Connect remote events
-	RemoteSetup.GetRemote(GameConfig.Remotes.Paint).OnServerEvent:Connect(onPaintRequest)
+	RemoteSetup.GetRemote(GameConfig.Remotes.ShootPaintball).OnServerEvent:Connect(onShootPaintball)
 	RemoteSetup.GetRemote(GameConfig.Remotes.RequestLeaderboard).OnServerEvent:Connect(onLeaderboardRequest)
 	RemoteSetup.GetRemote(GameConfig.Remotes.RequestStartGame).OnServerEvent:Connect(onRequestStartGame)
 
 	-- Connect remote function
 	RemoteSetup.GetRemoteFunction(GameConfig.RemoteFunctions.BuyUpgrade).OnServerInvoke = onBuyUpgrade
 
-	-- Portal pad touch starts countdown
-	local lobby = game:GetService("Workspace"):FindFirstChild("Lobby")
-	if lobby then
-		local portal = lobby:FindFirstChild("PortalPad")
-		if portal then
-			portal.Touched:Connect(function(hit)
-				local touchPlayer = Players:GetPlayerFromCharacter(hit.Parent)
-				if touchPlayer then
-					tryStartCountdown()
+	-- Portal pad proximity polling (replaces unreliable Touched/TouchEnded)
+	local portalPad = game:GetService("Workspace"):FindFirstChild("Lobby") and game:GetService("Workspace").Lobby:FindFirstChild("PortalPad")
+	local portalRemote = RemoteSetup.GetRemote(GameConfig.Remotes.PortalStatus)
+	local PORTAL_RADIUS = 7
+
+	RunService.Heartbeat:Connect(function()
+		if currentState ~= GameConfig.GameState.WaitingRoom then return end
+		if not portalPad then return end
+
+		local portalPos = portalPad.Position
+
+		for _, p in ipairs(Players:GetPlayers()) do
+			local character = p.Character
+			local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+			local wasOnPortal = playersOnPortal[p.UserId] or false
+			local isOnPortal = false
+
+			if rootPart then
+				local offset = rootPart.Position - portalPos
+				isOnPortal = math.abs(offset.X) <= PORTAL_RADIUS
+					and math.abs(offset.Z) <= PORTAL_RADIUS
+					and math.abs(offset.Y) <= 5
+			end
+
+			if isOnPortal and not wasOnPortal then
+				playersOnPortal[p.UserId] = true
+				portalRemote:FireClient(p, true)
+				tryStartCountdown()
+			elseif not isOnPortal and wasOnPortal then
+				playersOnPortal[p.UserId] = false
+				portalRemote:FireClient(p, false)
+				if getPortalPlayerCount() < GameConfig.MIN_PLAYERS_TO_START then
+					cancelCountdown()
 				end
-			end)
+			end
 		end
-	end
+	end)
+
+	-- Update leaderboard display boards periodically
+	task.spawn(function()
+		while true do
+			task.wait(15)
+			updateLeaderboardBoards()
+		end
+	end)
 
 	-- Player connections
 	Players.PlayerAdded:Connect(onPlayerAdded)
@@ -465,14 +579,22 @@ function GameManager.Init()
 		end
 	end)
 
-	-- Save all on shutdown
+	-- Save all on shutdown (PlayerRemoving may not fire for all players during BindToClose)
 	game:BindToClose(function()
+		shuttingDown = true
 		for _, player in ipairs(Players:GetPlayers()) do
+			local painted = sessionScores[player.UserId] or 0
+			if painted > 0 then
+				LeaderboardService.RecordSessionEnd(player, painted)
+			end
 			savePlayer(player)
 		end
+		LeaderboardService.Save()
+		task.wait(2)
 	end)
 
 	setState(GameConfig.GameState.WaitingRoom)
+	updateLeaderboardBoards()
 	print("[GameManager] Initialized — waiting room active with progression system")
 end
 

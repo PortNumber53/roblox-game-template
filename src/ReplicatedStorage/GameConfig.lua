@@ -1,4 +1,4 @@
--- GameConfig: shared constants and configuration for the wall-painting game
+-- GameConfig: shared constants and configuration for the paintball game
 
 local GameConfig = {}
 
@@ -25,15 +25,16 @@ GameConfig.Remotes = {
 	CountdownTick = "CountdownTick",
 	SessionScoreUpdate = "SessionScoreUpdate",
 	StatsSync = "StatsSync",
-	MilestoneReached = "MilestoneReached",
 	Feedback = "Feedback",
+	PaintballHit = "PaintballHit",
+	PortalStatus = "PortalStatus",
 
 	-- Client -> Server
 	RequestStartGame = "RequestStartGame",
 	RequestLeaderboard = "RequestLeaderboard",
 	RequestSettings = "RequestSettings",
 	UpdateSetting = "UpdateSetting",
-	Paint = "Paint",
+	ShootPaintball = "ShootPaintball",
 }
 
 -- Remote functions (use RemoteFunction instead of RemoteEvent)
