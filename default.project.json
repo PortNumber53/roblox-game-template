@@ -1,14 +1,18 @@
 {
-  "name": "WallPaintingArena",
+  "$schema": "https://rojo.space/schema/project.json",
+  "name": "paint-walls-grow-game",
   "tree": {
     "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "$path": "src/ReplicatedStorage",
+      "Shared": {
+        "$path": "src/ReplicatedStorage/Shared"
+      }
+    },
     "ServerScriptService": {
       "$className": "ServerScriptService",
       "$path": "src/ServerScriptService"
-    },
-    "ReplicatedStorage": {
-      "$className": "ReplicatedStorage",
-      "$path": "src/ReplicatedStorage"
     },
     "StarterGui": {
       "$className": "StarterGui",
@@ -19,6 +23,11 @@
       "StarterPlayerScripts": {
         "$className": "StarterPlayerScripts",
         "$path": "src/StarterPlayer/StarterPlayerScripts"
+      }
+    },
+    "Workspace": {
+      "$properties": {
+        "Gravity": 196.2
       }
     }
   }
