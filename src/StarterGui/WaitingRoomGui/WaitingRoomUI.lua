@@ -230,6 +230,8 @@ local function buildSettingsPanel(parent)
 		Parent = colorFrame,
 	})
 
+	local selectedColorButton = nil
+
 	for i, colorData in ipairs(GameConfig.PaintColors) do
 		local colorBtn = createInstance("TextButton", {
 			Name = colorData.Name,
@@ -247,15 +249,14 @@ local function buildSettingsPanel(parent)
 				Thickness = 3,
 				Parent = colorBtn,
 			})
+			selectedColorButton = colorBtn
 		end
 
 		colorBtn.MouseButton1Click:Connect(function()
 			-- Remove old selection indicator
-			for _, child in ipairs(colorFrame:GetChildren()) do
-				if child:IsA("TextButton") then
-					local stroke = child:FindFirstChild("Selected")
-					if stroke then stroke:Destroy() end
-				end
+			if selectedColorButton then
+				local oldStroke = selectedColorButton:FindFirstChild("Selected")
+				if oldStroke then oldStroke:Destroy() end
 			end
 			-- Add new selection
 			createInstance("UIStroke", {
@@ -264,6 +265,7 @@ local function buildSettingsPanel(parent)
 				Thickness = 3,
 				Parent = colorBtn,
 			})
+			selectedColorButton = colorBtn
 			playerSettings.PaintColorIndex = i
 		end)
 	end

@@ -13,6 +13,7 @@ local GameManager = {}
 local currentState = GameConfig.GameState.WaitingRoom
 local countdownActive = false
 local sessionScores = {} -- [userId] = number of walls painted this session
+local sessionTimerThread = nil -- coroutine for the session timer, cancelled on state change
 
 --------------------------------------------------
 -- State management
@@ -91,8 +92,14 @@ function GameManager.StartSession()
 
 	setState(GameConfig.GameState.InGame)
 
-	-- Session timer
-	task.delay(GameConfig.SESSION_DURATION_SECONDS, function()
+	-- Cancel any previous session timer
+	if sessionTimerThread then
+		task.cancel(sessionTimerThread)
+	end
+
+	-- Session timer (cancellable via task.cancel on state change)
+	sessionTimerThread = task.delay(GameConfig.SESSION_DURATION_SECONDS, function()
+		sessionTimerThread = nil
 		if currentState == GameConfig.GameState.InGame then
 			GameManager.EndSession()
 		end
@@ -100,6 +107,12 @@ function GameManager.StartSession()
 end
 
 function GameManager.EndSession()
+	-- Cancel the session timer if it's still running
+	if sessionTimerThread then
+		task.cancel(sessionTimerThread)
+		sessionTimerThread = nil
+	end
+
 	setState(GameConfig.GameState.GameOver)
 
 	-- Record session scores in leaderboards
@@ -121,9 +134,14 @@ end
 -- Wall painting handler
 --------------------------------------------------
 
-local function onPaintWallRequest(player: Player, row: number, col: number)
+local function onPaintWallRequest(player: Player, row: number, col: number, color: Color3)
 	if currentState ~= GameConfig.GameState.InGame then
 		return
+	end
+
+	-- Validate and sanitize the color from the client
+	if typeof(color) ~= "Color3" then
+		color = GameConfig.DefaultSettings.PaintColor
 	end
 
 	local points = WallPaintingService.PaintCell(player, row, col)
@@ -133,10 +151,10 @@ local function onPaintWallRequest(player: Player, row: number, col: number)
 		-- Record each wall painted (1 wall regardless of bonus multiplier)
 		LeaderboardService.RecordWallPainted(player)
 
-		-- Notify all clients of the wall update
+		-- Notify all clients of the wall update (including the painter's chosen color)
 		local wallRemote = RemoteSetup.GetRemote(GameConfig.Remotes.WallStateUpdate)
 		local cellType = WallPaintingService.GetCellType(row, col)
-		wallRemote:FireAllClients(row, col, player.UserId, cellType)
+		wallRemote:FireAllClients(row, col, player.UserId, cellType, color)
 
 		-- Notify the painting player of their updated session score
 		local scoreRemote = RemoteSetup.GetRemote(GameConfig.Remotes.SessionScoreUpdate)

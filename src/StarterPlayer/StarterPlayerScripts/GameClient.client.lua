@@ -91,7 +91,8 @@ local function onInputBegan(input, gameProcessed)
 			local row = part:GetAttribute("Row")
 			local col = part:GetAttribute("Col")
 			if row and col then
-				RemoteSetup.GetRemote(GameConfig.Remotes.RequestPaintWall):FireServer(row, col)
+				local color = WaitingRoomUI.GetSelectedColor()
+				RemoteSetup.GetRemote(GameConfig.Remotes.RequestPaintWall):FireServer(row, col, color)
 			end
 		end
 	end
@@ -164,7 +165,7 @@ RemoteSetup.GetRemote(GameConfig.Remotes.WallLayoutUpdate).OnClientEvent:Connect
 end)
 
 -- Wall state updates (color a part when someone paints)
-RemoteSetup.GetRemote(GameConfig.Remotes.WallStateUpdate).OnClientEvent:Connect(function(row, col, painterId, cellType)
+RemoteSetup.GetRemote(GameConfig.Remotes.WallStateUpdate).OnClientEvent:Connect(function(row, col, painterId, cellType, color)
 	local wallFolder = workspace:FindFirstChild("WallGrid")
 	if not wallFolder then
 		return
@@ -173,18 +174,7 @@ RemoteSetup.GetRemote(GameConfig.Remotes.WallStateUpdate).OnClientEvent:Connect(
 	local partName = "Wall_" .. row .. "_" .. col
 	local part = wallFolder:FindFirstChild(partName)
 	if part then
-		-- Use a per-player hue
-		local hue = (painterId * 0.13) % 1
-		local saturation = 0.7
-		local value = 0.9
-
-		-- Bonus cells get a brighter, more vivid paint
-		if cellType == "bonus" then
-			saturation = 0.9
-			value = 1.0
-		end
-
-		part.Color = Color3.fromHSV(hue, saturation, value)
+		part.Color = color
 		part.Material = Enum.Material.SmoothPlastic
 	end
 end)

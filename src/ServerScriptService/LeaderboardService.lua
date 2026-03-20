@@ -3,6 +3,9 @@
 
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local GameConfig = require(ReplicatedStorage:WaitForChild("GameConfig"))
 
 local LeaderboardService = {}
 
@@ -12,7 +15,7 @@ local sessionStore = DataStoreService:GetOrderedDataStore("WallsPaintedBestSessi
 -- Local cache of player stats for fast access during gameplay
 local playerStats = {} -- [userId] = { overall = number, bestSession = number }
 
-local MAX_ENTRIES = 50
+local MAX_ENTRIES = GameConfig.LEADERBOARD_MAX_ENTRIES
 
 --------------------------------------------------
 -- Internal helpers

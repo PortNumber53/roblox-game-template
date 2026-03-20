@@ -317,15 +317,15 @@ end
 -- Public API
 --------------------------------------------------
 
-local patternFunctions = {
-	patternColumns,
-	patternMaze,
-	patternDiamond,
-	patternIslands,
-	patternStripes,
-	patternCheckerboard,
-	patternArena,
-	patternSpiral,
+local patterns = {
+	{ name = "Columns",      func = patternColumns },
+	{ name = "Maze",         func = patternMaze },
+	{ name = "Diamond",      func = patternDiamond },
+	{ name = "Islands",      func = patternIslands },
+	{ name = "Stripes",      func = patternStripes },
+	{ name = "Checkerboard", func = patternCheckerboard },
+	{ name = "Arena",        func = patternArena },
+	{ name = "Spiral",       func = patternSpiral },
 }
 
 --- Generate a new random wall pattern.
@@ -334,13 +334,8 @@ function WallPatternGenerator.Generate(): ({ [number]: { [number]: string } }, s
 	local grid = makeGrid(ROWS, COLS, CellType.Open)
 
 	-- Pick a random base pattern
-	local index = math.random(1, #patternFunctions)
-	local patternNames = {
-		"Columns", "Maze", "Diamond", "Islands",
-		"Stripes", "Checkerboard", "Arena", "Spiral",
-	}
-
-	patternFunctions[index](grid)
+	local patternData = patterns[math.random(1, #patterns)]
+	patternData.func(grid)
 
 	-- Random chance to apply symmetry transforms
 	if math.random() > 0.5 then
@@ -361,7 +356,7 @@ function WallPatternGenerator.Generate(): ({ [number]: { [number]: string } }, s
 	)
 	scatterBonusCells(grid, bonusCount)
 
-	local patternName = patternNames[index]
+	local patternName = patternData.name
 	print("[WallPatternGenerator] Generated pattern: " .. patternName)
 
 	return grid, patternName

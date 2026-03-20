@@ -88,10 +88,7 @@ function WallPaintingService.GetCellOwner(row: number, col: number)
 end
 
 function WallPaintingService.GetCellType(row: number, col: number): string
-	if layout[row] then
-		return layout[row][col]
-	end
-	return CellType.Open
+	return (layout[row] and layout[row][col]) or CellType.Open
 end
 
 return WallPaintingService
