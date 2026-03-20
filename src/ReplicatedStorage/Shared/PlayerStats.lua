@@ -60,6 +60,42 @@ function PlayerStats:GetMoveSpeed()
 	return math.min(Config.MoveSpeedCap, Config.BaseMoveSpeed + bonus)
 end
 
+function PlayerStats:ApplySavedData(data)
+	if typeof(data) ~= "table" then
+		return
+	end
+
+	self.coins = data.coins or self.coins
+	self.milestoneIndex = data.milestoneIndex or self.milestoneIndex
+
+	if typeof(data.upgrades) == "table" then
+		for upgradeId, level in pairs(data.upgrades) do
+			if self.upgrades[upgradeId] ~= nil then
+				self.upgrades[upgradeId] = level
+			end
+		end
+	end
+
+	self.paint = self:GetMaxPaint()
+	self.size = Config.BaseCharacterScale
+end
+
+function PlayerStats:ToSaveData()
+	return {
+		version = 1,
+		coins = self.coins,
+		milestoneIndex = self.milestoneIndex,
+		upgrades = {
+			MaxSize = self.upgrades.MaxSize,
+			SizeMultiplier = self.upgrades.SizeMultiplier,
+			BrushSize = self.upgrades.BrushSize,
+			BrushSpeed = self.upgrades.BrushSpeed,
+			BucketCapacity = self.upgrades.BucketCapacity,
+			MoveSpeed = self.upgrades.MoveSpeed,
+		},
+	}
+end
+
 function PlayerStats:Serialize()
 	return {
 		coins = self.coins,

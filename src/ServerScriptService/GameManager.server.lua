@@ -9,6 +9,7 @@ local PaintService = require(script.Parent.PaintService)
 local GrowthService = require(script.Parent.GrowthService)
 local UpgradeService = require(script.Parent.UpgradeService)
 local RefillService = require(script.Parent.RefillService)
+local DataService = require(script.Parent.DataService)
 
 -- RemoteEvents
 local remotes = ReplicatedStorage:FindFirstChild("Remotes")
@@ -47,6 +48,7 @@ WorldBuilder.Build()
 local playerStates = {}
 local colorCounter = 0
 local brushCooldowns = {}
+local AUTOSAVE_INTERVAL = 60
 
 local function assignColor()
 	colorCounter = colorCounter + 1
@@ -58,6 +60,16 @@ end
 
 local function syncStats(player, stats)
 	evStatsSync:FireClient(player, stats:Serialize())
+end
+
+local function savePlayer(player)
+	local stats = playerStates[player.UserId]
+	if not stats then
+		return
+	end
+
+	local saveData = stats:ToSaveData()
+	DataService.SavePlayerData(player.UserId, saveData)
 end
 
 local function applyCharacterStats(character, stats)
@@ -89,6 +101,15 @@ local function setupCharacter(player, character)
 end
 
 local function setupPlayer(player)
+	local colorIndex = assignColor()
+	local stats = PlayerStats.new(colorIndex)
+	local loadedData = DataService.LoadPlayerData(player.UserId)
+	local sanitizedData = DataService.SanitizePlayerData(loadedData, require(ReplicatedStorage.Shared.UpgradeDefinitions), Config)
+	if sanitizedData then
+		stats:ApplySavedData(sanitizedData)
+	end
+	playerStates[player.UserId] = stats
+
 	player.CharacterAdded:Connect(function(character)
 		setupCharacter(player, character)
 	end)
@@ -107,6 +128,7 @@ for _, player in ipairs(Players:GetPlayers()) do
 end
 
 Players.PlayerRemoving:Connect(function(player)
+	savePlayer(player)
 	playerStates[player.UserId] = nil
 	brushCooldowns[player.UserId] = nil
 end)
@@ -180,5 +202,20 @@ RunService.Heartbeat:Connect(function(dt)
 				syncStats(player, stats)
 			end
 		end
+	end
+end)
+
+task.spawn(function()
+	while true do
+		task.wait(AUTOSAVE_INTERVAL)
+		for _, player in ipairs(Players:GetPlayers()) do
+			savePlayer(player)
+		end
+	end
+end)
+
+game:BindToClose(function()
+	for _, player in ipairs(Players:GetPlayers()) do
+		savePlayer(player)
 	end
 end)

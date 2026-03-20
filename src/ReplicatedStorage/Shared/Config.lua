@@ -1,5 +1,6 @@
 local Config = {}
 
+Config.EnableStudioPersistence = true
 Config.BaseMoveSpeed = 16
 Config.BaseJumpPower = 50
 Config.BaseCharacterScale = 1
