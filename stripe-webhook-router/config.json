@@ -1,0 +1,8 @@
+{
+  "port": "8080",
+  "stripe_webhook_secret": "",
+  "routes": {
+    "competitor_tracker": "http://competitor-tracker-service:8081/webhook/stripe",
+    "analytics_dashboard": "http://analytics-service:8082/webhook/stripe"
+  }
+}
