@@ -115,8 +115,8 @@ function DataService.SanitizePlayerData(data, upgradeDefinitions, config)
 		end
 	end
 
-	for upgradeId, definition in pairs(upgradeDefinitions) do
-		sanitized.upgrades[upgradeId] = sanitizeNumber(sourceUpgrades[upgradeId], 0, 0, definition.maxLevel)
+	for upgradeId, _ in pairs(upgradeDefinitions) do
+		sanitized.upgrades[upgradeId] = sanitizeNumber(sourceUpgrades[upgradeId], 0, 0)
 	end
 
 	return sanitized

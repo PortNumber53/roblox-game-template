@@ -46,18 +46,26 @@ local function loadHistory()
 	end)
 
 	if success and typeof(data) == "table" then
-		sessionHistory = data
-		-- Cap to max entries (keep highest scores)
-		if #sessionHistory > MAX_ENTRIES then
-			table.sort(sessionHistory, function(a, b)
-				return a.Score > b.Score
-			end)
-			local trimmed = {}
-			for i = 1, MAX_ENTRIES do
-				trimmed[i] = sessionHistory[i]
+		-- Deduplicate entries (same UserId + Score + Timestamp)
+		local seen = {}
+		local cleaned = {}
+		for _, entry in ipairs(data) do
+			local key = tostring(entry.UserId or 0) .. "_" .. tostring(entry.Score or 0) .. "_" .. tostring(entry.Timestamp or 0)
+			if not seen[key] then
+				seen[key] = true
+				table.insert(cleaned, entry)
 			end
-			sessionHistory = trimmed
 		end
+
+		-- Sort by score and cap to max entries
+		table.sort(cleaned, function(a, b)
+			return a.Score > b.Score
+		end)
+		sessionHistory = {}
+		for i = 1, math.min(#cleaned, MAX_ENTRIES) do
+			sessionHistory[i] = cleaned[i]
+		end
+
 		print("[LeaderboardService] Loaded " .. #sessionHistory .. " entries from DataStore")
 	end
 end

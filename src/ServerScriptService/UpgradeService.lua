@@ -8,18 +8,13 @@ function UpgradeService.TryPurchase(stats, upgradeId)
 		return false, "Unknown upgrade"
 	end
 
-	local level = stats.upgrades[upgradeId] or 0
-	if level >= def.maxLevel then
-		return false, "Max level reached"
-	end
-
 	local cost = stats:GetUpgradeCost(upgradeId)
 	if stats.coins < cost then
 		return false, "Not enough coins"
 	end
 
 	stats.coins = stats.coins - cost
-	stats.upgrades[upgradeId] = level + 1
+	stats.upgrades[upgradeId] = (stats.upgrades[upgradeId] or 0) + 1
 	return true, "OK"
 end
 

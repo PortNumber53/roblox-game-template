@@ -166,7 +166,7 @@ for _, upgradeId in ipairs(sortedIds) do
 
 	local levelLabel = createInstance("TextLabel", {
 		Name = "Level",
-		Text = "Lv 0 / " .. def.maxLevel,
+		Text = "Lv 0",
 		Size = UDim2.new(0.5, -5, 0, 16),
 		Position = UDim2.new(0, 10, 0, 26),
 		BackgroundTransparency = 1,
@@ -217,19 +217,12 @@ local function refresh()
 		if not def then continue end
 
 		local level = currentStats.upgrades and currentStats.upgrades[upgradeId] or 0
-		local maxed = level >= def.maxLevel
-		local cost = def.baseCost + def.costStep * level
+		local cost = math.floor(def.baseCost * (def.costMultiplier ^ level))
 		local canAfford = currentStats.coins and currentStats.coins >= cost
 
-		entry.levelLabel.Text = string.format("Lv %d / %d", level, def.maxLevel)
-
-		if maxed then
-			entry.button.Text = "MAXED"
-			entry.button.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
-		else
-			entry.button.Text = string.format("Buy (%d)", cost)
-			entry.button.BackgroundColor3 = canAfford and Color3.fromRGB(50, 140, 80) or Color3.fromRGB(100, 50, 50)
-		end
+		entry.levelLabel.Text = string.format("Lv %d", level)
+		entry.button.Text = string.format("Buy (%d)", cost)
+		entry.button.BackgroundColor3 = canAfford and Color3.fromRGB(50, 140, 80) or Color3.fromRGB(100, 50, 50)
 	end
 
 	coinsLabel.Text = "Coins: " .. (currentStats.coins or 0)

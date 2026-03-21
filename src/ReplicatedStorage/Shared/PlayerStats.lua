@@ -16,6 +16,7 @@ function PlayerStats.new(colorIndex)
 		AmmoCapacity = 0,
 		MoveSpeed = 0,
 		Range = 0,
+		ReloadSpeed = 0,
 	}
 	return self
 end
@@ -24,33 +25,48 @@ function PlayerStats:GetUpgradeCost(upgradeId)
 	local def = UpgradeDefinitions[upgradeId]
 	if not def then return math.huge end
 	local level = self.upgrades[upgradeId] or 0
-	if level >= def.maxLevel then return math.huge end
-	return def.baseCost + def.costStep * level
+	return math.floor(def.baseCost * (def.costMultiplier ^ level))
+end
+
+-- Diminishing returns: base + step * ln(1 + level)
+-- Each level always improves the stat, but by less than the previous one
+local function diminishing(level, step)
+	return step * math.log(1 + level)
 end
 
 function PlayerStats:GetMaxPaint()
-	local bonus = self.upgrades.AmmoCapacity * Config.UpgradeStepValues.AmmoCapacity
-	return Config.PaintCapacityBase + bonus
+	local bonus = diminishing(self.upgrades.AmmoCapacity, Config.UpgradeStepValues.AmmoCapacity)
+	return math.floor(Config.PaintCapacityBase + bonus)
 end
 
 function PlayerStats:GetSplashRadius()
-	local bonus = self.upgrades.SplashRadius * Config.UpgradeStepValues.SplashRadius
+	local bonus = diminishing(self.upgrades.SplashRadius, Config.UpgradeStepValues.SplashRadius)
 	return Config.SplashRadiusBase + bonus
 end
 
 function PlayerStats:GetFireRate()
-	local reduction = self.upgrades.FireRate * Config.UpgradeStepValues.FireRate
-	return math.max(0.05, Config.FireRateBase - reduction)
+	-- Lower is better; approaches min asymptotically
+	local minRate = 0.03
+	local range = Config.FireRateBase - minRate
+	return minRate + range / (1 + self.upgrades.FireRate * 0.15)
 end
 
 function PlayerStats:GetRange()
-	local bonus = self.upgrades.Range * Config.UpgradeStepValues.Range
+	local bonus = diminishing(self.upgrades.Range, Config.UpgradeStepValues.Range)
 	return Config.ProjectileRangeBase + bonus
 end
 
 function PlayerStats:GetMoveSpeed()
-	local bonus = self.upgrades.MoveSpeed * Config.UpgradeStepValues.MoveSpeed
-	return math.min(Config.MoveSpeedCap, Config.BaseMoveSpeed + bonus)
+	-- Approaches cap asymptotically
+	local maxSpeed = Config.MoveSpeedCap
+	local range = maxSpeed - Config.BaseMoveSpeed
+	return maxSpeed - range / (1 + self.upgrades.MoveSpeed * 0.12)
+end
+
+function PlayerStats:GetReloadRate()
+	-- Higher is better; base rate increased with diminishing returns
+	local bonus = diminishing(self.upgrades.ReloadSpeed, Config.UpgradeStepValues.ReloadSpeed)
+	return Config.RefillRatePerTick + bonus
 end
 
 function PlayerStats:ApplySavedData(data)
@@ -81,6 +97,7 @@ function PlayerStats:ToSaveData()
 			AmmoCapacity = self.upgrades.AmmoCapacity,
 			MoveSpeed = self.upgrades.MoveSpeed,
 			Range = self.upgrades.Range,
+			ReloadSpeed = self.upgrades.ReloadSpeed,
 		},
 	}
 end
@@ -95,12 +112,14 @@ function PlayerStats:Serialize()
 			AmmoCapacity = self.upgrades.AmmoCapacity,
 			MoveSpeed = self.upgrades.MoveSpeed,
 			Range = self.upgrades.Range,
+			ReloadSpeed = self.upgrades.ReloadSpeed,
 		},
 		maxPaint = self:GetMaxPaint(),
 		splashRadius = self:GetSplashRadius(),
 		fireRate = self:GetFireRate(),
 		range = self:GetRange(),
 		moveSpeed = self:GetMoveSpeed(),
+		reloadRate = self:GetReloadRate(),
 	}
 end
 

@@ -276,25 +276,27 @@ local function onShootPaintball(player, origin, direction)
 
 	if typeof(origin) ~= "Vector3" or typeof(direction) ~= "Vector3" then return end
 
-	local hitInfo = ShootingService.ProcessShot(player, stats, origin, direction, brushCooldowns)
-	if not hitInfo then return end
+	local shotResult = ShootingService.ProcessShot(player, stats, origin, direction, brushCooldowns)
+	if not shotResult then return end
 
-	local painted = PaintService.TryPaint(player, stats, hitInfo.hitPosition, hitInfo.hitTile)
+	if shotResult.hit then
+		local painted = PaintService.TryPaint(player, stats, shotResult.hitPosition, shotResult.hitTile)
 
-	-- Send hit confirmation to client for VFX
-	RemoteSetup.GetRemote(GameConfig.Remotes.PaintballHit):FireClient(
-		player, hitInfo.hitPosition, painted > 0
-	)
+		RemoteSetup.GetRemote(GameConfig.Remotes.PaintballHit):FireClient(
+			player, shotResult.hitPosition, painted > 0
+		)
 
-	if painted > 0 then
-		local coinsFromPaint = math.max(1, math.floor(painted / math.max(1, Config.PaintTilesPerCoin)))
-		stats.coins = stats.coins + coinsFromPaint
+		if painted > 0 then
+			local coinsFromPaint = math.max(1, math.floor(painted / math.max(1, Config.PaintTilesPerCoin)))
+			stats.coins = stats.coins + coinsFromPaint
 
-		sessionScores[player.UserId] = (sessionScores[player.UserId] or 0) + painted
-		LeaderboardService.RecordWallPainted(player)
-		RemoteSetup.GetRemote(GameConfig.Remotes.SessionScoreUpdate):FireClient(player, sessionScores[player.UserId])
+			sessionScores[player.UserId] = (sessionScores[player.UserId] or 0) + painted
+			LeaderboardService.RecordWallPainted(player)
+			RemoteSetup.GetRemote(GameConfig.Remotes.SessionScoreUpdate):FireClient(player, sessionScores[player.UserId])
+		end
 	end
 
+	-- Always sync stats so client sees ammo decrease
 	RemoteSetup.GetRemote(GameConfig.Remotes.Feedback):FireClient(player, "paint", stats.paint)
 	syncStats(player, stats)
 end
@@ -579,15 +581,19 @@ function GameManager.Init()
 		end
 	end)
 
-	-- Save all on shutdown (PlayerRemoving may not fire for all players during BindToClose)
+	-- Save all on shutdown
 	game:BindToClose(function()
 		shuttingDown = true
 		for _, player in ipairs(Players:GetPlayers()) do
-			local painted = sessionScores[player.UserId] or 0
-			if painted > 0 then
+			-- Only record if not already handled by PlayerRemoving
+			local painted = sessionScores[player.UserId]
+			if painted and painted > 0 then
 				LeaderboardService.RecordSessionEnd(player, painted)
+				sessionScores[player.UserId] = nil
 			end
-			savePlayer(player)
+			if playerStates[player.UserId] then
+				savePlayer(player)
+			end
 		end
 		LeaderboardService.Save()
 		task.wait(2)

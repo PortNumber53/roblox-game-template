@@ -31,7 +31,7 @@ function RefillService.TryRefill(player, stats)
 		return false
 	end
 
-	stats.paint = math.min(maxPaint, stats.paint + Config.RefillRatePerTick)
+	stats.paint = math.min(maxPaint, stats.paint + stats:GetReloadRate())
 	return true
 end
 

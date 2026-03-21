@@ -41,6 +41,7 @@ Config.UpgradeStepValues = {
 	AmmoCapacity = 25,
 	MoveSpeed = 2,
 	Range = 15,
+	ReloadSpeed = 8,
 }
 
 return Config

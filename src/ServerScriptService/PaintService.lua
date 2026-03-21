@@ -8,15 +8,11 @@ local function getWallFolder()
 	return game:GetService("Workspace"):FindFirstChild("Walls")
 end
 
-local function getPaintAreaRadius(stats)
-	return 1.75
-end
-
-local function getSplashTileBudget(stats, radius, paintAreaRadius, sampleTile)
+local function getSplashTileBudget(stats, radius, sampleTile)
 	local tileWidth = sampleTile and sampleTile.Size.X or Config.WallTileSize
 	local tileHeight = sampleTile and sampleTile.Size.Y or Config.WallTileSize
 	local tileArea = math.max(0.01, tileWidth * tileHeight)
-	local splashArea = math.pi * radius * paintAreaRadius * Config.PaintSplashCoverage
+	local splashArea = math.pi * radius * radius * Config.PaintSplashCoverage
 	local scaledBudget = math.floor(splashArea / tileArea)
 	return math.max(Config.PaintSplashTileBudget, scaledBudget)
 end
@@ -33,7 +29,6 @@ function PaintService.TryPaint(player, stats, position, targetTile)
 	if not targetTile:IsDescendantOf(wallFolder) then return 0 end
 
 	local radius = stats:GetSplashRadius()
-	local paintAreaRadius = getPaintAreaRadius(stats)
 	local painted = 0
 	local targetWall = targetTile.Parent
 	local targetSide = targetTile:GetAttribute("PaintSide")
@@ -50,19 +45,18 @@ function PaintService.TryPaint(player, stats, position, targetTile)
 
 		local offset = tile.Position - position
 		local dist = offset.Magnitude
-		if dist > radius + paintAreaRadius then continue end
+		if dist > radius then continue end
 
-		local xNorm = math.abs(offset.X) / math.max(0.001, radius)
-		local yNorm = math.abs(offset.Y) / math.max(0.001, paintAreaRadius)
-		local shapeScore = xNorm + yNorm * 1.35
+		-- Circular distance normalized to radius
+		local distNorm = dist / math.max(0.001, radius)
 		local jitterSeed = math.abs(math.sin(tile.Position.X * 12.73 + tile.Position.Y * 7.19 + tile.Position.Z * 3.11))
-		local threshold = 1.15 + jitterSeed * Config.PaintSplashJitter
+		local threshold = 1.0 + jitterSeed * Config.PaintSplashJitter
 
-		if shapeScore <= threshold then
+		if distNorm <= threshold then
 			table.insert(candidates, {
 				tile = tile,
 				dist = dist,
-				score = shapeScore + jitterSeed * 0.15,
+				score = distNorm + jitterSeed * 0.15,
 			})
 		end
 	end
@@ -76,7 +70,7 @@ function PaintService.TryPaint(player, stats, position, targetTile)
 
 	local maxNewTiles = math.min(
 		#candidates,
-		getSplashTileBudget(stats, radius, paintAreaRadius, targetTile),
+		getSplashTileBudget(stats, radius, targetTile),
 		math.max(1, math.floor(stats.paint / Config.PaintPerBrushTick))
 	)
 
@@ -90,9 +84,6 @@ function PaintService.TryPaint(player, stats, position, targetTile)
 			painted = painted + 1
 		end
 	end
-
-	local paintUsed = math.min(stats.paint, Config.PaintPerBrushTick * math.max(1, painted))
-	stats.paint = math.max(0, stats.paint - paintUsed)
 
 	return painted
 end
