@@ -35,6 +35,16 @@ Config.WallHeight = 18
 Config.WallThickness = 2
 Config.WallGap = 8
 Config.WallTileSize = 0.75
+-- Drone defaults
+Config.DroneMaxCount = 3
+Config.DroneSubscriptionDays = 7
+Config.DroneProductId = 0 -- Replace with actual Developer Product ID
+Config.DroneBaseCycleTime = 8
+Config.DroneSpeedStep = 0.15
+Config.DroneBaseDelivery = 8
+Config.DroneCapacityStep = 5
+Config.PaintFountainPosition = Vector3.new(0, 1, 0)
+
 Config.UpgradeStepValues = {
 	SplashRadius = 1.75,
 	FireRate = 0.015,

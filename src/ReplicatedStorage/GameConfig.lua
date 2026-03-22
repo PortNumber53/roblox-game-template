@@ -31,6 +31,8 @@ GameConfig.Remotes = {
 
 	-- Client -> Server
 	RequestStartGame = "RequestStartGame",
+	RequestBuyDrone = "RequestBuyDrone",
+	DroneDeliver = "DroneDeliver",
 	RequestLeaderboard = "RequestLeaderboard",
 	RequestSettings = "RequestSettings",
 	UpdateSetting = "UpdateSetting",
@@ -40,6 +42,7 @@ GameConfig.Remotes = {
 -- Remote functions (use RemoteFunction instead of RemoteEvent)
 GameConfig.RemoteFunctions = {
 	BuyUpgrade = "BuyUpgrade",
+	BuyDroneUpgrade = "BuyDroneUpgrade",
 }
 
 -- Player settings defaults

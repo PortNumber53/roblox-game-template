@@ -17,6 +17,7 @@ local UpgradeService = require(script.Parent:WaitForChild("UpgradeService"))
 local RefillService = require(script.Parent:WaitForChild("RefillService"))
 local DataService = require(script.Parent:WaitForChild("DataService"))
 local ShootingService = require(script.Parent:WaitForChild("ShootingService"))
+local DroneService = require(script.Parent:WaitForChild("DroneService"))
 
 local GameManager = {}
 
@@ -322,6 +323,43 @@ local function onBuyUpgrade(player, upgradeId)
 end
 
 --------------------------------------------------
+-- Drone handlers
+--------------------------------------------------
+
+local function onRequestBuyDrone(player)
+	DroneService.PromptPurchase(player)
+end
+
+local function onBuyDroneUpgrade(player, droneIndex, upgradeId)
+	local success, msg = DroneService.TryUpgrade(player, droneIndex, upgradeId)
+	if success then
+		local stats = playerStates[player.UserId]
+		if stats then
+			syncStats(player, stats)
+			savePlayer(player)
+		end
+	end
+	return success, msg
+end
+
+local function onDroneDeliver(player, droneIndex, action)
+	if currentState ~= GameConfig.GameState.InGame then return end
+	local stats = playerStates[player.UserId]
+	if not stats then return end
+	if typeof(droneIndex) ~= "number" then return end
+	droneIndex = math.floor(droneIndex)
+
+	if action == "fill" then
+		DroneService.FillDrone(player.UserId, droneIndex, stats)
+	elseif action == "deliver" then
+		local delivered = DroneService.DeliverToPlayer(player.UserId, droneIndex, stats)
+		if delivered then
+			syncStats(player, stats)
+		end
+	end
+end
+
+--------------------------------------------------
 -- Leaderboard request handler
 --------------------------------------------------
 
@@ -364,8 +402,9 @@ local function onPlayerAdded(player)
 	playerStates[player.UserId] = stats
 	brushCooldowns[player.UserId] = 0
 
-	-- Load leaderboard data
+	-- Init services for this player
 	LeaderboardService.LoadPlayer(player)
+	DroneService.InitPlayer(player.UserId)
 
 	-- Character setup
 	player.CharacterAdded:Connect(function(character)
@@ -408,6 +447,7 @@ local function onPlayerRemoving(player)
 	end
 
 	LeaderboardService.UnloadPlayer(player)
+	DroneService.CleanupPlayer(player.UserId)
 	playerStates[player.UserId] = nil
 	brushCooldowns[player.UserId] = nil
 	sessionScores[player.UserId] = nil
@@ -492,13 +532,19 @@ function GameManager.Init()
 	-- Build the physical world
 	WorldBuilder.Build()
 
+	-- Initialize drone marketplace handler
+	DroneService.Init(playerStates, syncStats, savePlayer)
+
 	-- Connect remote events
 	RemoteSetup.GetRemote(GameConfig.Remotes.ShootPaintball).OnServerEvent:Connect(onShootPaintball)
 	RemoteSetup.GetRemote(GameConfig.Remotes.RequestLeaderboard).OnServerEvent:Connect(onLeaderboardRequest)
 	RemoteSetup.GetRemote(GameConfig.Remotes.RequestStartGame).OnServerEvent:Connect(onRequestStartGame)
+	RemoteSetup.GetRemote(GameConfig.Remotes.RequestBuyDrone).OnServerEvent:Connect(onRequestBuyDrone)
+	RemoteSetup.GetRemote(GameConfig.Remotes.DroneDeliver).OnServerEvent:Connect(onDroneDeliver)
 
-	-- Connect remote function
+	-- Connect remote functions
 	RemoteSetup.GetRemoteFunction(GameConfig.RemoteFunctions.BuyUpgrade).OnServerInvoke = onBuyUpgrade
+	RemoteSetup.GetRemoteFunction(GameConfig.RemoteFunctions.BuyDroneUpgrade).OnServerInvoke = onBuyDroneUpgrade
 
 	-- Portal pad proximity polling (replaces unreliable Touched/TouchEnded)
 	local portalPad = game:GetService("Workspace"):FindFirstChild("Lobby") and game:GetService("Workspace").Lobby:FindFirstChild("PortalPad")

@@ -119,6 +119,21 @@ function DataService.SanitizePlayerData(data, upgradeDefinitions, config)
 		sanitized.upgrades[upgradeId] = sanitizeNumber(sourceUpgrades[upgradeId], 0, 0)
 	end
 
+	-- Sanitize drone data
+	if typeof(data.drones) == "table" then
+		sanitized.drones = {}
+		for i = 1, math.min(#data.drones, config.DroneMaxCount or 3) do
+			local d = data.drones[i]
+			if typeof(d) == "table" then
+				table.insert(sanitized.drones, {
+					expiresAt = sanitizeNumber(d.expiresAt, 0, 0),
+					speed = sanitizeNumber(d.speed, 0, 0),
+					capacity = sanitizeNumber(d.capacity, 0, 0),
+				})
+			end
+		end
+	end
+
 	return sanitized
 end
 
